@@ -1,0 +1,80 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules
+
+# Build output
+dist
+dist-ssr
+build
+release
+release-prod
+*.local
+
+# Rust / Tauri build
+src-tauri/target
+
+# Python cache
+__pycache__
+*.py[cod]
+
+# =============== 安全凭证 & 密钥文件（切勿入库！） ===============
+# Dotenv 所有变体
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Electron 运行时加密凭证文件（userData 不在仓库内，这里纯保险）
+secure-credentials.bin
+moke-autosave-settings.json
+
+# 私钥 / 证书 / Keystore
+*.pem
+*.key
+*.keystore
+*.jks
+*.p12
+*.p8
+*.mobileprovision
+*.certSigningRequest
+id_rsa
+id_ed25519
+
+# Code signing identities
+certs/
+.certificates/
+
+# Tauri 签名
+src-tauri/.cargo-ok
+src-tauri/tauri-key*
+src-tauri/*.pem
+
+# IDE / OS
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# 临时
+.icon-tmp/
+.tmp/
+tmp/
+_gen.py
+*-1777221116081.png
+*.openapi.json
+migrated_prompt_history/
+.codebuddy/

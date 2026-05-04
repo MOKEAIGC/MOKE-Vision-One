@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https: http:; img-src 'self' data: blob: https: http:; connect-src 'self' https: http: ws: wss:; font-src 'self' https: data:;">
+    <title>MOKE Vision One</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              'moke-black': '#050505',
+              'moke-white': '#F5F5F5',
+              'moke-red': '#D00000',
+              'moke-red-dim': '#500000',
+            },
+            fontFamily: {
+              sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+              mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+            },
+            animation: {
+              'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            },
+          },
+        },
+      }
+    </script>
+    <script>
+      // 首屏字体大小恢复 —— 在 React 挂载前执行，消除读取 localStorage 前的首帧闪烁
+      // Tailwind 默认基于 16px 根字号，这里直接写到 html.style.fontSize，
+      // 搭配 contexts/FontSizeContext.tsx 的 state，构成完整的持久化链路
+      (function () {
+        try {
+          var raw = localStorage.getItem('moke.fontSize');
+          var size = raw ? parseInt(raw, 10) : 16;
+          if (isNaN(size)) size = 16;
+          if (size < 12) size = 12;
+          if (size > 22) size = 22;
+          document.documentElement.style.fontSize = size + 'px';
+          document.documentElement.style.setProperty('--app-font-scale', String(size / 16));
+          document.documentElement.style.setProperty('--app-font-size', size + 'px');
+        } catch (e) { /* ignore */ }
+      })();
+    </script>
+    <style>
+      html, body {
+        background-color: #050505;
+        overflow: hidden;
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+      }
+      /* 全局字体缩放 —— 根字号变化时使用短过渡，避免视觉抖动 */
+      html {
+        transition: font-size 180ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      body {
+        /* 继承自 html，显式声明以防某些组件库重置 */
+        font-size: 1rem;
+      }
+      #root {
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+      }
+      /* Professional Scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #333;
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #D00000;
+      }
+      /* macOS 标题栏拖拽区域 */
+      .electron-drag {
+        -webkit-app-region: drag;
+      }
+      .electron-no-drag {
+        -webkit-app-region: no-drag;
+      }
+    </style>
+    <link rel="stylesheet" href="./index.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./index.tsx"></script>
+  </body>
+</html>

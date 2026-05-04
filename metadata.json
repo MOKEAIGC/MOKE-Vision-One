@@ -1,0 +1,7 @@
+{
+  "name": "Remix: MOKE AIGC X1 - 虚拟量子相机26.04.5",
+  "description": "搭载10亿像素曲面有机传感器与平面超构透镜的次世代虚拟相机。支持量子计算级实时降噪，在绝对黑暗中捕捉白昼般的清晰画质。",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

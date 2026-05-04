@@ -1,0 +1,116 @@
+{
+  "name": "moke-vision-one",
+  "productName": "MOKE Vision One",
+  "private": true,
+  "version": "3.7.3",
+  "description": "虚拟量子相机 — AI 图像生成桌面应用",
+  "author": "MOKE",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "postinstall": "patch-package",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron:build": "vite build && electron-builder",
+    "electron:build:win": "vite build && electron-builder --win",
+    "electron:build:mac": "vite build && electron-builder --mac",
+    "electron:build:all": "vite build && electron-builder --win --mac",
+    "release:pack": "bash scripts/release-pack.sh",
+    "release:full": "npm run electron:build:all && npm run release:pack"
+  },
+  "dependencies": {
+    "@google/genai": "^1.36.0",
+    "@googlemaps/js-api-loader": "^2.0.2",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "file-saver": "^2.0.5",
+    "highlight.js": "^11.11.1",
+    "html2canvas": "^1.4.1",
+    "jszip": "3.10.1",
+    "leaflet": "^1.9.4",
+    "lit": "^3.3.2",
+    "lucide-react": "^0.577.0",
+    "maplibre-gl": "^5.19.0",
+    "marked": "^17.0.6",
+    "marked-highlight": "^2.2.3",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-leaflet": "^5.0.0",
+    "react-map-gl": "^8.1.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/file-saver": "^2.0.7",
+    "@types/leaflet": "^1.9.21",
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^9.1.2",
+    "electron": "^35.1.2",
+    "electron-builder": "^26.0.12",
+    "patch-package": "^8.0.1",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "wait-on": "^8.0.3"
+  },
+  "build": {
+    "appId": "com.moke.vision-one",
+    "productName": "MOKE Vision One",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.photography",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "darkModeSupport": true
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "installerLanguages": [
+        "zh_CN",
+        "en_US"
+      ],
+      "language": "2052"
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    }
+  }
+}
