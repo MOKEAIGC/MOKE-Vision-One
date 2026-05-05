@@ -16,8 +16,9 @@
     "tauri:build:win:x64": "tauri build --target x86_64-pc-windows-msvc",
     "tauri:build:mac:x64": "tauri build --target x86_64-apple-darwin",
     "tauri:build:mac:arm64": "tauri build --target aarch64-apple-darwin",
-    "release:artifacts": "node scripts/package-tauri-release.mjs",
-    "release:verify": "node scripts/package-tauri-release.mjs --require-all",
+    "release:artifacts:partial": "node scripts/package-tauri-release.mjs",
+    "release:artifacts": "node scripts/package-tauri-release.mjs --require-all",
+    "release:verify": "npm run release:artifacts",
     "release:full:win:x64": "npm run tauri:build:win:x64 && npm run release:artifacts",
     "release:full:mac:x64": "npm run tauri:build:mac:x64 && npm run release:artifacts",
     "release:full:mac:arm64": "npm run tauri:build:mac:arm64 && npm run release:artifacts"

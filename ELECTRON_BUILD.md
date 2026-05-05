@@ -47,10 +47,10 @@ Tauri 原始 bundle 输出位于：
 src-tauri/target/<target-triple>/release/bundle/
 ```
 
-执行下面命令会把可用安装包复制到 `release/`，并统一命名、生成源码 zip 与 SHA256 文件：
+执行下面命令会把当前机器已经构建好的可用安装包复制到 `release/`，并统一命名、生成源码 zip 与 SHA256 文件：
 
 ```bash
-npm run release:artifacts
+npm run release:artifacts:partial
 ```
 
 目标产物命名格式：
@@ -64,11 +64,13 @@ npm run release:artifacts
 - `moke-vision-one-source-<version>.zip`
 - `moke-vision-one-checksums-<version>.txt`
 
-若要严格校验三类桌面安装包是否都已到位：
+若要严格校验 issue #3 要求的三类桌面安装包是否都已到位，并生成完整发布集：
 
 ```bash
-npm run release:verify
+npm run release:artifacts
 ```
+
+如果希望自动在对应平台上产出三套正式版制品，执行或复用仓库中的 GitHub Actions 工作流：`.github/workflows/tauri-release-artifacts.yml`
 
 ## 兼容说明
 

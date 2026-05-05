@@ -19,7 +19,9 @@ MOKE Vision One 是一个基于 React + Vite 的 AI 图像生成桌面应用，�
 
 ## 发布产物整理
 
-构建完成后执行：`npm run release:artifacts`
+如果只是把当前机器已经构建好的单平台安装包整理到 `release/`，执行：`npm run release:artifacts:partial`
+
+如果要严格生成 issue #3 要求的完整发布集，执行：`npm run release:artifacts`
 
 该脚本会把 Tauri 输出的安装包复制到 `release/` 并统一重命名为：
 
@@ -32,4 +34,10 @@ MOKE Vision One 是一个基于 React + Vite 的 AI 图像生成桌面应用，�
 - `moke-vision-one-source-<version>.zip`
 - `moke-vision-one-checksums-<version>.txt`
 
-如果需要校验三类桌面安装包是否都已准备齐全，执行：`npm run release:verify`
+`npm run release:artifacts` / `npm run release:verify` 会强制要求以下三类桌面安装包都已存在，否则直接失败：
+
+- Windows x64
+- macOS x64
+- macOS arm64
+
+如果需要一键产出三平台完整制品，使用仓库内的 GitHub Actions 工作流：`.github/workflows/tauri-release-artifacts.yml`
