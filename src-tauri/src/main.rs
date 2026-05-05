@@ -3,11 +3,33 @@
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use keyring::{Entry, Error as KeyringError};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use tauri::{AppHandle, Manager};
 
 const KEYRING_SERVICE: &str = "moke-vision-one";
+const AUTO_SAVE_SETTINGS_FILE: &str = "moke-autosave-settings.json";
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AutoSaveSettings {
+    enabled: bool,
+    folder_path: String,
+    save_images: bool,
+    save_prompts: bool,
+}
+
+impl Default for AutoSaveSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            folder_path: String::new(),
+            save_images: true,
+            save_prompts: true,
+        }
+    }
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -82,6 +104,37 @@ fn write_bytes(file_path: PathBuf, bytes: Vec<u8>) -> FileOperationResult {
     }
 }
 
+fn auto_save_settings_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
+    let mut path = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+
+    fs::create_dir_all(&path).map_err(|error| error.to_string())?;
+    path.push(AUTO_SAVE_SETTINGS_FILE);
+    Ok(path)
+}
+
+fn load_auto_save_settings(app_handle: &AppHandle) -> Result<AutoSaveSettings, String> {
+    let path = auto_save_settings_path(app_handle)?;
+    if !path.exists() {
+        return Ok(AutoSaveSettings::default());
+    }
+
+    let raw = fs::read_to_string(path).map_err(|error| error.to_string())?;
+    if raw.trim().is_empty() {
+        return Ok(AutoSaveSettings::default());
+    }
+
+    serde_json::from_str::<AutoSaveSettings>(&raw).map_err(|error| error.to_string())
+}
+
+fn persist_auto_save_settings(app_handle: &AppHandle, settings: &AutoSaveSettings) -> Result<(), String> {
+    let path = auto_save_settings_path(app_handle)?;
+    let content = serde_json::to_vec_pretty(settings).map_err(|error| error.to_string())?;
+    fs::write(path, content).map_err(|error| error.to_string())
+}
+
 fn keyring_entry(key: &str) -> Result<Entry, String> {
     Entry::new(KEYRING_SERVICE, key).map_err(|error| error.to_string())
 }
@@ -92,6 +145,25 @@ fn save_base64_file(folder_path: String, file_name: String, base64_data: String)
     match decode_base64_payload(&base64_data) {
         Ok(bytes) => write_bytes(file_path, bytes),
         Err(error) => err_file_result(error),
+    }
+}
+
+#[tauri::command]
+fn get_auto_save_settings(app_handle: AppHandle) -> Result<AutoSaveSettings, String> {
+    load_auto_save_settings(&app_handle)
+}
+
+#[tauri::command]
+fn set_auto_save_settings(app_handle: AppHandle, data: AutoSaveSettings) -> CommandResult {
+    match persist_auto_save_settings(&app_handle, &data) {
+        Ok(_) => CommandResult {
+            success: true,
+            error: None,
+        },
+        Err(error) => CommandResult {
+            success: false,
+            error: Some(error),
+        },
     }
 }
 
@@ -236,6 +308,8 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             save_base64_file,
+            get_auto_save_settings,
+            set_auto_save_settings,
             save_text_file,
             write_base64_file_at_path,
             write_binary_file_at_path,

@@ -22,6 +22,11 @@ type SecureValueResult = {
   error?: string;
 };
 
+type CommandResult = {
+  success: boolean;
+  error?: string;
+};
+
 type DesktopCompatAPI = {
   isElectron: boolean;
   runtime: 'tauri';
@@ -84,6 +89,19 @@ function readAutoSaveSettings(): Partial<AutoSaveSettings> {
   }
 }
 
+function writeAutoSaveSettingsSnapshot(settings: AutoSaveSettings): void {
+  localStorage.setItem(AUTO_SAVE_SETTINGS_KEY, JSON.stringify(settings));
+}
+
+function hasAutoSaveSettingsValue(settings: Partial<AutoSaveSettings> | null | undefined): settings is AutoSaveSettings {
+  if (!settings) return false;
+
+  return typeof settings.folderPath === 'string'
+    || typeof settings.enabled === 'boolean'
+    || typeof settings.saveImages === 'boolean'
+    || typeof settings.savePrompts === 'boolean';
+}
+
 function toImageFilters(defaultName: string): FileDialogFilter[] {
   const ext = defaultName.split('.').pop()?.toLowerCase();
   const extensions = ext ? [ext] : ['png', 'jpg', 'jpeg', 'webp'];
@@ -138,9 +156,29 @@ export async function installDesktopCompat(): Promise<void> {
       content,
     }),
     openFolder: async (folderPath) => invokeTauri<FileOperationResult>('open_folder', { folderPath }),
-    getAutoSaveSettings: async () => readAutoSaveSettings(),
+    getAutoSaveSettings: async () => {
+      const diskSettings = await invokeTauri<Partial<AutoSaveSettings>>('get_auto_save_settings');
+      if (hasAutoSaveSettingsValue(diskSettings)) {
+        writeAutoSaveSettingsSnapshot(diskSettings);
+        return diskSettings;
+      }
+
+      const localSettings = readAutoSaveSettings();
+      if (hasAutoSaveSettingsValue(localSettings)) {
+        const result = await invokeTauri<CommandResult>('set_auto_save_settings', { data: localSettings });
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to persist auto save settings');
+        }
+      }
+
+      return localSettings;
+    },
     setAutoSaveSettings: async (data) => {
-      localStorage.setItem(AUTO_SAVE_SETTINGS_KEY, JSON.stringify(data));
+      writeAutoSaveSettingsSnapshot(data);
+      const result = await invokeTauri<CommandResult>('set_auto_save_settings', { data });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to persist auto save settings');
+      }
       return { success: true };
     },
     downloadImage: async (base64Data, defaultName) => {
