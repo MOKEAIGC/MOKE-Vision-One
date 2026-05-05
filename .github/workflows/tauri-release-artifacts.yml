@@ -76,6 +76,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -103,6 +106,9 @@ jobs:
       - name: Assemble final release artifacts
         run: npm run release:artifacts
 
+      - name: Generate release notes
+        run: node scripts/generate-release-notes.mjs --current-tag "${{ github.ref_name }}" --output release/release-notes.md
+
       - name: Upload final release artifact set
         uses: actions/upload-artifact@v4
         with:
@@ -121,7 +127,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: MOKE Vision One ${{ github.ref_name }}
-          generate_release_notes: true
+          body_path: release/release-notes.md
           fail_on_unmatched_files: true
           files: |
             release/*.exe
