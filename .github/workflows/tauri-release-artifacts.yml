@@ -22,7 +22,7 @@ jobs:
             target: x86_64-pc-windows-msvc
             npmScript: tauri:build:win:x64
             bundleGlob: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
-          - os: macos-13
+          - os: macos-14
             artifactKey: darwin-x64
             target: x86_64-apple-darwin
             npmScript: tauri:build:mac:x64
