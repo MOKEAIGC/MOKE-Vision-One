@@ -79,10 +79,44 @@ function getGitRecordSeparatorOutput(args) {
   return output ? output.split('\x1e').map((item) => item.trim()).filter(Boolean) : [];
 }
 
-function collectChanges(diffRange, currentTag, previousTag) {
+function resolveCommitRef(ref) {
+  return runGit(['rev-parse', `${ref}^{commit}`]);
+}
+
+function getInitialTagRange(currentTag) {
+  const currentCommit = resolveCommitRef(currentTag);
+  const parentLine = getGitLines(['rev-list', '--parents', '-n', '1', currentCommit])[0] || '';
+  const parents = parentLine.split(' ').slice(1).filter(Boolean);
+
+  if (parents.length > 0) {
+    return {
+      diffLines: getGitLines(['diff', '--find-renames', '--name-status', `${parents[0]}..${currentCommit}`]),
+      logRecords: getGitRecordSeparatorOutput([
+        'log',
+        '--reverse',
+        '--first-parent',
+        '--format=%s%x1f%b%x1e',
+        `${parents[0]}..${currentCommit}`,
+      ]),
+    };
+  }
+
+  return {
+    diffLines: getGitLines(['show', '--format=', '--find-renames', '--name-status', currentCommit]),
+    logRecords: getGitRecordSeparatorOutput([
+      'log',
+      '--reverse',
+      '--first-parent',
+      '--format=%s%x1f%b%x1e',
+      currentCommit,
+    ]),
+  };
+}
+
+function collectChanges(diffRange, currentTag, previousTag, initialTagRange) {
   const lines = previousTag
     ? getGitLines(['diff', '--find-renames', '--name-status', diffRange])
-    : getGitLines(['show', '--format=', '--find-renames', '--name-status', currentTag]);
+    : initialTagRange.diffLines;
 
   return lines.map(parseChangeLine);
 }
@@ -108,10 +142,10 @@ function isReleaseBookkeepingPath(filePath) {
   return filePath === 'package.json' || filePath === 'package-lock.json';
 }
 
-function collectCommitSummaries(diffRange, currentTag, previousTag) {
+function collectCommitSummaries(diffRange, currentTag, previousTag, initialTagRange) {
   const records = previousTag
     ? getGitRecordSeparatorOutput(['log', '--reverse', '--first-parent', '--format=%s%x1f%b%x1e', diffRange])
-    : getGitRecordSeparatorOutput(['log', '--reverse', '--first-parent', '--format=%s%x1f%b%x1e', currentTag]);
+    : initialTagRange.logRecords;
 
   const summaries = [];
   const seen = new Set();
@@ -222,10 +256,11 @@ const tags = getGitLines(['tag', '--sort=-version:refname']);
 const currentTagIndex = tags.indexOf(currentTag);
 const previousTag = currentTagIndex >= 0 ? tags.slice(currentTagIndex + 1).find(Boolean) || null : tags.find((tag) => tag !== currentTag) || null;
 const diffRange = previousTag ? `${previousTag}..${currentTag}` : currentTag;
-const changes = collectChanges(diffRange, currentTag, previousTag);
+const initialTagRange = previousTag ? null : getInitialTagRange(currentTag);
+const changes = collectChanges(diffRange, currentTag, previousTag, initialTagRange);
 const visibleChanges = preferProductChanges(changes, (change) => isReleaseBookkeepingPath(change.filePath));
 const commitSummaries = preferProductChanges(
-  collectCommitSummaries(diffRange, currentTag, previousTag),
+  collectCommitSummaries(diffRange, currentTag, previousTag, initialTagRange),
   (summary) => isReleaseBookkeepingSummary(summary),
 );
 const changedFileCount = new Set(visibleChanges.map((change) => change.displayPath)).size;
