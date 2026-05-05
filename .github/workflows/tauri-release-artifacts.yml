@@ -7,7 +7,7 @@ on:
       - 'v*'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-platform-bundle:
@@ -108,3 +108,17 @@ jobs:
             release/*.txt
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish GitHub Release assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: MOKE Vision One ${{ github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+            release/*.txt

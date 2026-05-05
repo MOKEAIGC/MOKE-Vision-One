@@ -72,6 +72,8 @@ npm run release:artifacts
 
 如果希望自动在对应平台上产出三套正式版制品，执行或复用仓库中的 GitHub Actions 工作流：`.github/workflows/tauri-release-artifacts.yml`
 
+当工作流运行在 `v*` tag 上时，它还会自动创建或更新对应的 GitHub Release，并附加最终安装包、源码 zip 与校验和文件。
+
 ## 兼容说明
 
 - `electron/` 目录当前仅保留为历史实现参考，不再参与主打包流程。
