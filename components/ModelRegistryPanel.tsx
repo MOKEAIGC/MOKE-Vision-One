@@ -5,8 +5,9 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useApiConfig } from '../contexts/ApiConfigContext';
-import { testGeminiConnection, testYunwuConnection, ApiTestResult } from '../services/geminiService';
+import { resolveActiveImageRuntimeConfig, resolveActiveTextRuntimeConfig, useApiConfig } from '../contexts/ApiConfigContext';
+import { testGeminiConnection, ApiTestResult } from '../services/geminiService';
+import { testOpenAIImageConnection } from '../services/imageGenerationService';
 // [v2] 统一跳转到"新版"API 设置（双窗口面板），替代旧版 ApiConfigPanel
 import { ApiSettingsModal } from './ApiSettingsModal';
 
@@ -320,13 +321,16 @@ export const ModelRegistryPanel: React.FC<ModelRegistryPanelProps> = ({ onClose,
 
     setGeminiStatus('testing');
     const run = async (): Promise<ApiTestResult> => {
-      if (config.provider === 'yunwu') {
-        const y = config.yunwu;
-        if (!y || !y.apiKey) return { success: false, message: '云雾 AI 未配置 API Key' };
-        return testYunwuConnection(y.apiKey, y.baseUrl, y.model);
+      const textRuntime = resolveActiveTextRuntimeConfig(config);
+      const imageRuntime = resolveActiveImageRuntimeConfig(config);
+      if (!textRuntime.apiKey) return { success: false, message: '未配置 API Key' };
+      if (textRuntime.provider === 'custom' && !textRuntime.baseUrl) {
+        return { success: false, message: '自定义中转未配置完整' };
       }
-      if (!config.apiKey) return { success: false, message: '未配置 API Key' };
-      return testGeminiConnection(config.apiKey, config.baseUrl, config.model);
+      if (imageRuntime.protocol === 'openai-image') {
+        return testOpenAIImageConnection(imageRuntime.apiKey, imageRuntime.baseUrl, imageRuntime.model);
+      }
+      return testGeminiConnection(imageRuntime.apiKey, imageRuntime.baseUrl, imageRuntime.model);
     };
 
     run().then((r) => {

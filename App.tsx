@@ -11,10 +11,11 @@ import { EarthView } from './components/EarthView';
 import { FilmSystem } from './components/FilmSystem';
 import { ApiConfigPanel } from './components/ApiConfigPanel';
 import { ApiSettingsModal } from './components/ApiSettingsModal';
-import { generateQuantumImage, ensureApiKey, setRuntimeApiConfig } from './services/geminiService';
+import { ensureApiKey } from './services/geminiService';
+import { generateModelImage } from './services/imageGenerationService';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
-import { ApiConfigProvider, useApiConfig } from './contexts/ApiConfigContext';
+import { ApiConfigProvider, resolveActiveImageRuntimeConfig, useApiConfig } from './contexts/ApiConfigContext';
 import { DirectorDeckWindow } from './components/director/DirectorDeckWindow';
 import { SatelliteLinkWindow } from './components/satellite/SatelliteLinkWindow';
 import { ModelRegistryPanel } from './components/ModelRegistryPanel';
@@ -30,7 +31,6 @@ import { BottomDock } from './components/BottomDock';
 import { SideRail } from './components/SideRail';
 import { ChatProvider } from './contexts/ChatContext';
 import { ChatWindow } from './components/chat/ChatWindow';
-import { setChatGeminiConfig } from './services/chatService';
 import { PromptAppendProvider, usePromptAppendRegistrar } from './contexts/PromptAppendContext';
 import { ApiSettingsFab } from './components/ApiSettingsFab';
 // IntroPage 退出过渡协调器：消除进入 Vision One 时 Logo 延时消失的卡顿
@@ -94,15 +94,6 @@ const QuantumCamera: React.FC<QuantumCameraProps> = ({ onBack }) => {
     onBack();
   };
 
-  // 同步 Gemini API 配置到 geminiService
-  useEffect(() => {
-    setRuntimeApiConfig(config.apiKey, config.baseUrl, config.model);
-    // 同步到聊天服务（聊天使用 textModel，图像类才用 model）
-    // 缺省回退：textModel 为空时使用 gemini-2.0-flash-exp 文本模型
-    const chatModel = (config.textModel && config.textModel.trim()) || 'gemini-2.0-flash-exp';
-    setChatGeminiConfig(config.apiKey, config.baseUrl, chatModel);
-  }, [config]);
-
   // 注册 prompt state 到 PromptAppendContext，让聊天窗口中的提示词卡片能"添加到 CMD"
   usePromptAppendRegistrar(
     React.useCallback(() => prompt, [prompt]),
@@ -125,7 +116,11 @@ const QuantumCamera: React.FC<QuantumCameraProps> = ({ onBack }) => {
   const [batchCount, setBatchCount] = useState<BatchCount>(1);
 
   const handleCapture = async () => {
-    const hasKey = await ensureApiKey();
+    const imageRuntime = resolveActiveImageRuntimeConfig(config);
+    const hasKey = imageRuntime.protocol === 'gemini'
+      ? await ensureApiKey()
+      : !!imageRuntime.apiKey;
+
     if (!hasKey) {
       // 没有 API Key 时自动弹出配置面板，而不是弹 alert
       setShowApiConfig(true);
@@ -150,11 +145,11 @@ const QuantumCamera: React.FC<QuantumCameraProps> = ({ onBack }) => {
 
       for (let i = 0; i < count; i++) {
         try {
-          const imageUrl = await generateQuantumImage(
-            finalPrompt,
+          const imageUrl = await generateModelImage({
+            prompt: finalPrompt,
             settings,
-            refImagesBase64
-          );
+            referenceImagesBase64: refImagesBase64,
+          });
           const newImage: CapturedImage = {
             id: `${Date.now()}_${i}`,
             url: imageUrl,
@@ -345,7 +340,7 @@ const QuantumCamera: React.FC<QuantumCameraProps> = ({ onBack }) => {
         />
       )}
 
-      {/* API 配置 — 统一使用新版 ApiSettingsModal（含云雾 AI 中转 Tab），与其他子页面保持一致 */}
+      {/* API 配置 — 统一使用新版 ApiSettingsModal，与其他子页面保持一致 */}
       {showApiConfig && (
         <ApiSettingsModal onClose={() => setShowApiConfig(false)} />
       )}
