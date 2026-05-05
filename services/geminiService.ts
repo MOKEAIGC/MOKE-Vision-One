@@ -1,14 +1,22 @@
+// 文件路径: services/geminiService.ts
+// Gemini 兼容服务层
+// ----------------------------------------------------------------------------
+// 当前文件保留原有对外接口（generateQuantumImage / ensureApiKey / testGeminiConnection），
+// Gemini 协议下的图片生成逻辑也保留在这里，减少对旧调用方和原文件结构的改动。
+
 import { GoogleGenAI } from "@google/genai";
 import { CameraSettings } from "../types";
+import {
+  FALLBACK_OFFICIAL_IMAGE_MODEL,
+  setRuntimeImageGenerationConfig,
+} from "./imageGenerationService";
 import { callLlmWithDiagnostics, classifyLlmError, diagLog } from "./llmConnectionDiagnostics";
 
 // ==================== 运行时 API 配置 ====================
 
 // 官方 Gemini API 回落模型（必须是 Google 官方真实存在的模型名）
 // 如果用户选择官方 API 但没填模型，会用这个兜底，避免 404 "models/xxx is not found"
-const FALLBACK_OFFICIAL_IMAGE_MODEL = 'gemini-3-flash-preview';
-
-// Gemini 原生 API 配置
+// 保留旧的 Gemini 运行时字段，避免依赖旧接口的调用方行为发生变化。
 let runtimeApiKey: string = '';
 let runtimeBaseUrl: string = '';
 let runtimeModel: string = FALLBACK_OFFICIAL_IMAGE_MODEL;
@@ -18,6 +26,13 @@ export const setRuntimeApiConfig = (apiKey: string, baseUrl: string, model: stri
   runtimeApiKey = apiKey;
   runtimeBaseUrl = baseUrl;
   runtimeModel = model || FALLBACK_OFFICIAL_IMAGE_MODEL;
+
+  setRuntimeImageGenerationConfig({
+    apiKey: runtimeApiKey,
+    baseUrl: runtimeBaseUrl,
+    model: runtimeModel,
+    protocol: 'gemini',
+  });
 };
 
 // 获取有效的 API Key（运行时配置优先，其次环境变量）
@@ -35,8 +50,7 @@ const getEffectiveModel = (): string => {
 
 // Helper to ensure API key is selected
 export const ensureApiKey = async (): Promise<boolean> => {
-  // Gemini 模式：优先检查运行时配置的 Key
-  if (runtimeApiKey && runtimeApiKey.trim()) return true;
+  if (getEffectiveApiKey()) return true;
 
   const win = window as any;
   if (win.aistudio && win.aistudio.hasSelectedApiKey) {
@@ -46,13 +60,13 @@ export const ensureApiKey = async (): Promise<boolean> => {
         await win.aistudio.openSelectKey();
         return await win.aistudio.hasSelectedApiKey();
       } catch (e) {
-        console.error("Key selection failed", e);
+        console.error('Key selection failed', e);
         return false;
       }
     }
     return true;
   }
-  // If not in the specific environment with window.aistudio, fallback to env check (simulated success for dev)
+
   return !!process.env.API_KEY;
 };
 
@@ -141,14 +155,14 @@ export const generateQuantumImage = async (
     // Add reference images if available
     if (referenceImagesBase64 && referenceImagesBase64.length > 0) {
       referenceImagesBase64.forEach((b64) => {
-          // Strip prefix if present (data:image/jpeg;base64,)
-          const base64Data = b64.split(',')[1] || b64;
-          parts.push({
-            inlineData: {
-              data: base64Data,
-              mimeType: 'image/jpeg', // Assuming JPEG for simplicity from input
-            },
-          });
+        // Strip prefix if present (data:image/jpeg;base64,)
+        const base64Data = b64.split(',')[1] || b64;
+        parts.push({
+          inlineData: {
+            data: base64Data,
+            mimeType: 'image/jpeg', // Assuming JPEG for simplicity from input
+          },
+        });
       });
       parts.push({ text: finalPrompt });
     } else {
@@ -159,9 +173,9 @@ export const generateQuantumImage = async (
     // 关键：必须声明 responseModalities 包含 "IMAGE"，否则模型只会返回文本
     //
     // 这里用 callLlmWithDiagnostics 包住 generateContent：
-    //   · 自动识别 404 / 401 / 429 / 5xx / timeout 等错误分类
-    //   · 仅对瞬时性错误（超时 / 5xx / 429）按指数退避自动重试
-    //   · 对模型不存在 / 认证失败等永久性错误立即返回，避免无意义等待
+    //   - 自动识别 404 / 401 / 429 / 5xx / timeout 等错误分类
+    //   - 仅对瞬时性错误（超时 / 5xx / 429）按指数退避自动重试
+    //   - 对模型不存在 / 认证失败等永久性错误立即返回，避免无意义等待
     const callResult = await callLlmWithDiagnostics(
       () => ai.models.generateContent({
         model: getEffectiveModel(),
@@ -171,8 +185,8 @@ export const generateQuantumImage = async (
         config: {
           responseModalities: ["IMAGE", "TEXT"],
           imageConfig: {
-            aspectRatio: settings.aspectRatio, // Use selected aspect ratio
-            imageSize: settings.resolution,    // Use selected resolution
+            aspectRatio: settings.aspectRatio,
+            imageSize: settings.resolution,
           },
         },
       }),
@@ -184,7 +198,7 @@ export const generateQuantumImage = async (
     );
 
     if (!callResult.success) {
-      // 诊断模块已给出用户友好的 humanMessage，直接抛出即可
+      // 诊断模块已经给出用户友好的 humanMessage，直接抛出即可
       throw new Error(callResult.humanMessage);
     }
     const response = callResult.data!;
@@ -224,11 +238,11 @@ export const generateQuantumImage = async (
   } catch (error: any) {
     diagLog('error', 'image-gen', 'Quantum Processor Error:', error);
 
-    // 如果是我们自己抛出的 Error（已经含有 humanMessage 或诊断文本），直接透传
+    // 如果是我们自己抛出的 Error（已经含 humanMessage 或诊断文本），直接透传
     // 否则再过一遍分类器，确保用户拿到可读的中文提示
     const info = classifyLlmError(error);
     if (info.category === 'UNKNOWN' && /模型未返回图片数据|安全过滤|使用模型/.test(info.rawMessage)) {
-      // 这是上方主动抛出的"图片未返回"诊断文本，保持原样
+      // 这是上方主动抛出的“图片未返回”诊断文本，保持原样
       throw error;
     }
     throw new Error(info.humanMessage);

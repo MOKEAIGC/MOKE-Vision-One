@@ -21,10 +21,15 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ReactDOM from 'react-dom';
-import { useApiConfig, ApiProvider } from '../contexts/ApiConfigContext';
+import { useApiConfig, ApiProvider, ImageGenerationProvider } from '../contexts/ApiConfigContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { testGeminiConnection, testYunwuConnection, ApiTestResult } from '../services/geminiService';
+import { testGeminiConnection, ApiTestResult } from '../services/geminiService';
+import {
+  FALLBACK_OFFICIAL_IMAGE_MODEL,
+  FALLBACK_OPENAI_IMAGE_MODEL,
+  testOpenAIImageConnection,
+} from '../services/imageGenerationService';
 import { ModelSelector } from './ModelSelector';
 import { useTextShortcuts } from './useTextShortcuts';
 
@@ -33,16 +38,11 @@ interface ApiSettingsModalProps {
   onClose: () => void;
 }
 
+type SettingsTab = 'gemini' | 'image' | 'custom';
+
 // 候选项（仅用于 Chip 渲染 — 注意：不再预选任何一项）
 const ASPECT_RATIOS = ['16:9', '1:1', '9:16', '4:3', '3:4'] as const;
 const RESOLUTIONS = ['1K', '2K', '4K'] as const;
-
-// 云雾 AI BASE URL 候选（用户可点击快速填充）
-const YUNWU_BASE_URLS = [
-  'https://yunwu.ai',
-  'https://yunwu.ai/v1',
-  'https://yunwu.ai/v1/chat/completions',
-] as const;
 
 // ---------------- Fluid size tokens（CSS clamp — 一套全量流体 token） ----------------
 // 使用内联 style 以便在 Tailwind Play CDN 下稳定解析 clamp()
@@ -75,26 +75,31 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
   const inputShortcuts = useTextShortcuts();
 
   // ---------------- 本地受控状态（初始化自 context，不再注入业务默认值） ----------------
-  // 当前 Tab：'gemini' = 第一个窗口（官方）；'yunwu' = 第二个窗口（云雾 AI 中转）
-  const [activeTab, setActiveTab] = useState<ApiProvider>(config.provider || 'gemini');
+  const initialTextProvider: ApiProvider = config.provider === 'custom' ? 'custom' : 'gemini';
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTextProvider);
+  const [selectedTextProvider, setSelectedTextProvider] = useState<ApiProvider>(initialTextProvider);
 
   // —— Gemini 官方窗口的本地状态 ——
   const [localBaseUrl, setLocalBaseUrl] = useState(config.baseUrl);
   const [localApiKey, setLocalApiKey] = useState(config.apiKey);
-  const [localImageModel, setLocalImageModel] = useState(config.model || '');
+  const [localImageModel, setLocalImageModel] = useState(config.imageGeneration?.google?.model || config.model || '');
   const [localTextModel, setLocalTextModel] = useState(config.textModel || '');
   const [localAspectRatio, setLocalAspectRatio] = useState(config.aspectRatio || '');
   const [localResolution, setLocalResolution] = useState(config.resolution || '');
   const [showKey, setShowKey] = useState(false);
 
-  // —— 云雾 AI 第二窗口的本地状态 ——
-  const [yunwuBaseUrl, setYunwuBaseUrl] = useState(config.yunwu?.baseUrl || 'https://yunwu.ai');
-  const [yunwuApiKey, setYunwuApiKey] = useState(config.yunwu?.apiKey || '');
-  const [yunwuModel, setYunwuModel] = useState(config.yunwu?.model || 'gemini-3.1-flash-image-preview');
-  // 端点模式已从 UI 移除：内部固定走 Gemini 协议（/v1beta/models/{model}:generateContent）
-  // 仍保留持久化字段以兼容旧数据/底层 testYunwuConnection 签名
-  const yunwuEndpointMode = 'gemini' as const;
-  const [showYunwuKey, setShowYunwuKey] = useState(false);
+  // —— 第二窗口「图片生成配置」的本地状态 ——
+  const [imageGlobalBaseUrl, setImageGlobalBaseUrl] = useState(config.imageGeneration?.baseUrl || '');
+  const [imageGlobalApiKey, setImageGlobalApiKey] = useState(config.imageGeneration?.apiKey || '');
+  const [showImageGlobalKey, setShowImageGlobalKey] = useState(false);
+  const [imageProvider, setImageProvider] = useState<ImageGenerationProvider>(config.imageGeneration?.activeProvider || 'google');
+  const [googleBaseUrl, setGoogleBaseUrl] = useState(config.imageGeneration?.google?.baseUrl || '');
+  const [googleApiKey, setGoogleApiKey] = useState(config.imageGeneration?.google?.apiKey || '');
+  const [showGoogleKey, setShowGoogleKey] = useState(false);
+  const [openaiModel, setOpenaiModel] = useState(config.imageGeneration?.openai?.model || FALLBACK_OPENAI_IMAGE_MODEL);
+  const [openaiBaseUrl, setOpenaiBaseUrl] = useState(config.imageGeneration?.openai?.baseUrl || '');
+  const [openaiApiKey, setOpenaiApiKey] = useState(config.imageGeneration?.openai?.apiKey || '');
+  const [showOpenaiKey, setShowOpenaiKey] = useState(false);
 
   // —— 第三窗口「自定义中转」的本地状态 ——
   const [customName, setCustomName] = useState(config.custom?.name || '');
@@ -112,12 +117,81 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
   // 关闭路径防重入（Esc + 遮罩可能同帧双触发）
   const closedRef = useRef(false);
 
+  const getUrlError = (url: string, required = false) => {
+    const value = url.trim();
+    if (!value) {
+      return required
+        ? (isCN ? '请填写 BASE URL' : 'BASE URL is required')
+        : '';
+    }
+    return /^https?:\/\//i.test(value)
+      ? ''
+      : (isCN ? '请以 http:// 或 https:// 开头' : 'Must start with http:// or https://');
+  };
+
+  const getTextAuthFallbackDraft = () => {
+    if (selectedTextProvider === 'custom') {
+      return {
+        label: customName.trim() || (isCN ? '自定义中转' : 'Custom Relay'),
+        apiKey: customApiKey.trim(),
+        baseUrl: customBaseUrl.trim(),
+      };
+    }
+
+    return {
+      label: isCN ? 'Gemini 官方' : 'Gemini Official',
+      apiKey: localApiKey.trim(),
+      baseUrl: localBaseUrl.trim(),
+    };
+  };
+
+  const getSupplierApiKeyDraft = (provider: ImageGenerationProvider) => (
+    provider === 'openai' ? openaiApiKey.trim() : googleApiKey.trim()
+  );
+
+  const getEffectiveImageAuthDraft = (provider: ImageGenerationProvider) => {
+    const supplierApiKey = getSupplierApiKeyDraft(provider);
+    const defaultApiKey = imageGlobalApiKey.trim();
+    const textFallback = getTextAuthFallbackDraft();
+
+    if (supplierApiKey) {
+      return {
+        label: provider === 'openai'
+          ? (isCN ? 'OpenAI 供应商 Token' : 'OpenAI Supplier Token')
+          : (isCN ? 'Google 供应商 Token' : 'Google Supplier Token'),
+        apiKey: supplierApiKey,
+      };
+    }
+
+    if (defaultApiKey) {
+      return {
+        label: isCN ? '图片页默认 Token' : 'Image Tab Default Token',
+        apiKey: defaultApiKey,
+      };
+    }
+
+    return {
+      label: textFallback.label,
+      apiKey: textFallback.apiKey,
+    };
+  };
+
+  const resolveImageBaseUrl = (provider: ImageGenerationProvider) => {
+    const textFallback = getTextAuthFallbackDraft();
+    if (provider === 'openai') {
+      return openaiBaseUrl.trim() || imageGlobalBaseUrl.trim() || textFallback.baseUrl;
+    }
+    return googleBaseUrl.trim() || imageGlobalBaseUrl.trim() || textFallback.baseUrl;
+  };
+
   // ---------------- 工具：把本地状态整体写回 context ----------------
   // 两个窗口各自字段独立持久化；同时把当前激活 Tab 作为 provider 写回，
   // Context 会依据 provider 把对应字段注入底层 service 运行时。
   const commitToContext = () => {
+    const providerForSave: ApiProvider = activeTab === 'image' ? selectedTextProvider : activeTab;
+
     updateConfig({
-      provider: activeTab,
+      provider: providerForSave,
       baseUrl: localBaseUrl.trim(),
       apiKey: localApiKey.trim(),
       // [CHANGED] 不再硬编码兜底字符串，用户未填就是空
@@ -125,18 +199,27 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
       textModel: localTextModel.trim(),
       aspectRatio: localAspectRatio,
       resolution: localResolution,
-      yunwu: {
-        baseUrl: yunwuBaseUrl.trim(),
-        apiKey: yunwuApiKey.trim(),
-        model: yunwuModel.trim(),
-        endpointMode: yunwuEndpointMode,
-      },
       custom: {
         name: customName.trim(),
         baseUrl: customBaseUrl.trim(),
         apiKey: customApiKey.trim(),
         imageModel: customImageModel.trim(),
         textModel: customTextModel.trim(),
+      },
+      imageGeneration: {
+        activeProvider: imageProvider,
+        baseUrl: imageGlobalBaseUrl.trim(),
+        apiKey: imageGlobalApiKey.trim(),
+        google: {
+          model: localImageModel.trim(),
+          baseUrl: googleBaseUrl.trim(),
+          apiKey: googleApiKey.trim(),
+        },
+        openai: {
+          model: openaiModel.trim(),
+          baseUrl: openaiBaseUrl.trim(),
+          apiKey: openaiApiKey.trim(),
+        },
       },
     });
   };
@@ -165,10 +248,15 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
 
   // 清空：当前 Tab 所有字段回到"未设置"状态（仅重置本地草稿，不落盘）
   const handleReset = () => {
-    if (activeTab === 'yunwu') {
-      setYunwuBaseUrl('https://yunwu.ai');
-      setYunwuApiKey('');
-      setYunwuModel('gemini-3.1-flash-image-preview');
+    if (activeTab === 'image') {
+      setImageGlobalBaseUrl('');
+      setImageGlobalApiKey('');
+      setImageProvider('google');
+      setGoogleBaseUrl('');
+      setGoogleApiKey('');
+      setOpenaiModel(FALLBACK_OPENAI_IMAGE_MODEL);
+      setOpenaiBaseUrl('');
+      setOpenaiApiKey('');
     } else if (activeTab === 'custom') {
       setCustomName('');
       setCustomBaseUrl('');
@@ -192,20 +280,27 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
     setTestResult(null);
     try {
       let result: ApiTestResult;
-      if (activeTab === 'yunwu') {
-        result = await testYunwuConnection(
-          yunwuApiKey.trim(),
-          yunwuBaseUrl.trim(),
-          yunwuModel.trim(),
-          yunwuEndpointMode,
-        );
+      if (activeTab === 'image') {
+        if (imageProvider === 'openai') {
+          const effectiveAuth = getEffectiveImageAuthDraft('openai');
+          result = await testOpenAIImageConnection(
+            effectiveAuth.apiKey,
+            resolveImageBaseUrl('openai'),
+            openaiModel.trim() || FALLBACK_OPENAI_IMAGE_MODEL,
+          );
+        } else {
+          const effectiveAuth = getEffectiveImageAuthDraft('google');
+          result = await testGeminiConnection(
+            effectiveAuth.apiKey,
+            resolveImageBaseUrl('google'),
+            localImageModel.trim() || FALLBACK_OFFICIAL_IMAGE_MODEL,
+          );
+        }
       } else if (activeTab === 'custom') {
-        // 自定义中转站同样走 Gemini 协议，复用 testYunwuConnection
-        result = await testYunwuConnection(
+        result = await testGeminiConnection(
           customApiKey.trim(),
           customBaseUrl.trim(),
           (customImageModel.trim() || customTextModel.trim()),
-          'gemini',
         );
       } else {
         result = await testGeminiConnection(
@@ -234,22 +329,29 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     localBaseUrl, localApiKey, localImageModel, localTextModel, localAspectRatio, localResolution,
-    yunwuBaseUrl, yunwuApiKey, yunwuModel,
+    imageGlobalBaseUrl, imageGlobalApiKey, imageProvider, googleBaseUrl, googleApiKey,
+    openaiModel, openaiBaseUrl, openaiApiKey,
     customName, customBaseUrl, customApiKey, customImageModel, customTextModel,
-    activeTab,
+    activeTab, selectedTextProvider,
   ]);
 
   // 外部 config 变化 → 回填本地（不注入默认值）
   useEffect(() => {
     setLocalBaseUrl(config.baseUrl);
     setLocalApiKey(config.apiKey);
-    setLocalImageModel(config.model || '');
+    setLocalImageModel(config.imageGeneration?.google?.model || config.model || '');
     setLocalTextModel(config.textModel || '');
     setLocalAspectRatio(config.aspectRatio || '');
     setLocalResolution(config.resolution || '');
-    setYunwuBaseUrl(config.yunwu?.baseUrl || 'https://yunwu.ai');
-    setYunwuApiKey(config.yunwu?.apiKey || '');
-    setYunwuModel(config.yunwu?.model || 'gemini-3.1-flash-image-preview');
+    setSelectedTextProvider(config.provider === 'custom' ? 'custom' : 'gemini');
+    setImageGlobalBaseUrl(config.imageGeneration?.baseUrl || '');
+    setImageGlobalApiKey(config.imageGeneration?.apiKey || '');
+    setImageProvider(config.imageGeneration?.activeProvider || 'google');
+    setGoogleBaseUrl(config.imageGeneration?.google?.baseUrl || '');
+    setGoogleApiKey(config.imageGeneration?.google?.apiKey || '');
+    setOpenaiModel(config.imageGeneration?.openai?.model || FALLBACK_OPENAI_IMAGE_MODEL);
+    setOpenaiBaseUrl(config.imageGeneration?.openai?.baseUrl || '');
+    setOpenaiApiKey(config.imageGeneration?.openai?.apiKey || '');
     setCustomName(config.custom?.name || '');
     setCustomBaseUrl(config.custom?.baseUrl || '');
     setCustomApiKey(config.custom?.apiKey || '');
@@ -259,37 +361,65 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
 
   // ---------------- 校验（非阻塞，按 Tab 区分） ----------------
   const validation = useMemo(() => {
-    if (activeTab === 'yunwu') {
-      const apiKeyWarn = !yunwuApiKey.trim()
-        ? (isCN ? '云雾 API Key 为空，保存后仍可继续填写' : 'Yunwu API Key is empty; you can still save')
+    if (activeTab === 'image') {
+      const effectiveAuth = getEffectiveImageAuthDraft(imageProvider);
+      const apiKeyWarn = !effectiveAuth.apiKey
+        ? (isCN
+          ? '当前图片供应商没有可用 Token；会按 供应商 Token → 图片页默认 Token → 文本认证 Token 的顺序回退'
+          : 'No usable token for the current image provider; fallback order is supplier token -> image tab token -> text auth token')
         : '';
-      const url = yunwuBaseUrl.trim();
-      const baseUrlError = url && !/^https?:\/\//i.test(url)
-        ? (isCN ? '请以 http:// 或 https:// 开头' : 'Must start with http:// or https://')
-        : '';
-      return { apiKeyWarn, baseUrlError };
+
+      return {
+        apiKeyWarn,
+        baseUrlError: '',
+        imageDefaultBaseUrlError: getUrlError(imageGlobalBaseUrl),
+        googleBaseUrlError: getUrlError(googleBaseUrl),
+        openaiBaseUrlError: getUrlError(openaiBaseUrl),
+      };
     }
     if (activeTab === 'custom') {
       const apiKeyWarn = !customApiKey.trim()
         ? (isCN ? 'API Key 为空，保存后仍可继续填写' : 'API Key is empty; you can still save')
         : '';
-      const url = customBaseUrl.trim();
-      const baseUrlError = !url
-        ? (isCN ? '请填写中转站 BASE URL' : 'BASE URL is required')
-        : !/^https?:\/\//i.test(url)
-          ? (isCN ? '请以 http:// 或 https:// 开头' : 'Must start with http:// or https://')
-          : '';
-      return { apiKeyWarn, baseUrlError };
+      return {
+        apiKeyWarn,
+        baseUrlError: getUrlError(customBaseUrl, true),
+        imageDefaultBaseUrlError: '',
+        googleBaseUrlError: '',
+        openaiBaseUrlError: '',
+      };
     }
     const apiKeyWarn = !localApiKey.trim()
       ? (isCN ? 'API Key 为空，保存后仍可继续填写' : 'API Key is empty; you can still save and fill later')
       : '';
-    const url = localBaseUrl.trim();
-    const baseUrlError = url && !/^https?:\/\//i.test(url)
-      ? (isCN ? '请以 http:// 或 https:// 开头' : 'Must start with http:// or https://')
-      : '';
-    return { apiKeyWarn, baseUrlError };
-  }, [activeTab, localApiKey, localBaseUrl, yunwuApiKey, yunwuBaseUrl, customApiKey, customBaseUrl, isCN]);
+    return {
+      apiKeyWarn,
+      baseUrlError: getUrlError(localBaseUrl),
+      imageDefaultBaseUrlError: '',
+      googleBaseUrlError: '',
+      openaiBaseUrlError: '',
+    };
+  }, [
+    activeTab,
+    imageGlobalBaseUrl,
+    imageProvider,
+    googleBaseUrl,
+    googleApiKey,
+    imageGlobalApiKey,
+    localApiKey,
+    localBaseUrl,
+    customApiKey,
+    customBaseUrl,
+    customName,
+    customTextModel,
+    customImageModel,
+    localBaseUrl,
+    localApiKey,
+    openaiApiKey,
+    openaiBaseUrl,
+    selectedTextProvider,
+    isCN,
+  ]);
 
   // ---------------- 主题 token ----------------
   const panelBg = isDark ? 'bg-[#0A0A0A]' : 'bg-white';
@@ -395,7 +525,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
           </button>
         </div>
 
-        {/* ================= Tab 切换栏（双窗口入口） ================= */}
+        {/* ================= Tab 切换栏 ================= */}
         <div
           className={`flex items-stretch border-b ${borderColor}`}
           style={{ padding: `0 ${FLUID.pad}` }}
@@ -403,9 +533,9 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
           aria-label={isCN ? 'API 服务商' : 'API Provider'}
         >
           {([
-            { key: 'gemini' as ApiProvider, label: isCN ? 'Gemini 官方' : 'GEMINI OFFICIAL', sub: 'aistudio.google.com' },
-            { key: 'yunwu' as ApiProvider, label: isCN ? '云雾 AI 中转' : 'YUNWU RELAY', sub: 'yunwu.ai' },
-            { key: 'custom' as ApiProvider, label: isCN ? '自定义中转' : 'CUSTOM RELAY', sub: isCN ? '任意 Gemini 兼容站点' : 'any Gemini-compat site' },
+            { key: 'gemini' as SettingsTab, label: isCN ? 'Gemini 官方' : 'GEMINI OFFICIAL', sub: 'aistudio.google.com' },
+            { key: 'image' as SettingsTab, label: isCN ? '图片生成配置' : 'IMAGE GENERATION', sub: 'google / openai' },
+            { key: 'custom' as SettingsTab, label: isCN ? '自定义中转' : 'CUSTOM RELAY', sub: isCN ? '任意 Gemini 兼容站点' : 'any Gemini-compat site' },
           ]).map((tab) => {
             const active = activeTab === tab.key;
             return (
@@ -414,7 +544,13 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
                 type="button"
                 role="tab"
                 aria-selected={active}
-                onClick={() => { setActiveTab(tab.key); setTestResult(null); }}
+                onClick={() => {
+                  setActiveTab(tab.key);
+                  if (tab.key !== 'image') {
+                    setSelectedTextProvider(tab.key);
+                  }
+                  setTestResult(null);
+                }}
                 className={`relative font-mono font-bold uppercase tracking-widest transition-all cursor-pointer flex flex-col items-start ${
                   active
                     ? 'text-moke-red'
@@ -667,8 +803,8 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
         </div>
         )}
 
-        {/* ================= 第二窗口：云雾 AI 中转配置 ================= */}
-        {activeTab === 'yunwu' && (
+        {/* ================= 第二窗口：图片生成配置 ================= */}
+        {activeTab === 'image' && (
         <div
           className="flex flex-col"
           style={{
@@ -685,56 +821,80 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
               className={`font-mono font-bold ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}
               style={{ fontSize: FLUID.label, letterSpacing: '0.12em' }}
             >
-              ✦ {isCN ? '云雾 AI 中转 · 配置步骤' : 'YUNWU AI RELAY · STEPS'}
+              ✦ {isCN ? '图片生成 · 继承规则' : 'IMAGE GENERATION · FALLBACKS'}
             </p>
             <ol
               className={`font-mono ${isDark ? 'text-gray-500' : 'text-gray-500'}`}
               style={{ fontSize: FLUID.hint, marginTop: '0.375rem', paddingLeft: '1.1rem', listStyleType: 'decimal', lineHeight: 1.7 }}
             >
-              <li>{isCN ? '登录后台 → 「令牌」页 → 「添加令牌」获取 API Key' : 'Login backend → Token page → Add token'}</li>
-              <li>{isCN ? '选择 BASE URL（不同客户端建议依次尝试）' : 'Pick BASE URL (try them in order)'}</li>
-              <li>{isCN ? '从首页「支持模型」列表第一列复制模型名称' : 'Copy model name from "Supported Models" list'}</li>
+              <li>{isCN ? '顶部 BASE URL / Token 是图片页默认配置' : 'The top BASE URL / token act as image-tab defaults'}</li>
+              <li>{isCN ? 'Google / OpenAI 供应商留空时，继承图片页默认值' : 'Google / OpenAI supplier fields inherit the image-tab defaults when left empty'}</li>
+              <li>{isCN ? '若默认值也为空，则继续回退到当前文本认证（Gemini 官方 / 自定义中转）' : 'If the defaults are also empty, the current text-auth settings are used as the last fallback'}</li>
             </ol>
-            <a
-              href="https://yunwu.ai"
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`inline-flex items-center gap-1 font-mono font-bold transition-colors ${isDark ? 'text-cyan-400 hover:text-cyan-300' : 'text-cyan-600 hover:text-cyan-500'}`}
-              style={{ fontSize: FLUID.hint, marginTop: '0.5rem', letterSpacing: '0.05em' }}
-            >
-              <svg style={{ width: '0.75rem', height: '0.75rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-              {isCN ? '前往 yunwu.ai 控制台 →' : 'Open yunwu.ai console →'}
-            </a>
+            <p className={`font-mono ${descText}`} style={{ fontSize: FLUID.hint, marginTop: '0.5rem', lineHeight: 1.7 }}>
+              {isCN
+                ? 'OpenAI 兼容供应商会根据是否传入参考图自动切换 /v1/images/generations 与 /v1/images/edits，无需手动设置策略。'
+                : 'The OpenAI-compatible supplier automatically switches between /v1/images/generations and /v1/images/edits based on whether reference images are provided.'}
+            </p>
           </div>
 
-          {/* 云雾 API KEY */}
+          {/* 图片页默认 BASE URL */}
           <div className="flex flex-col" style={{ gap: FLUID.gapSmall }}>
             <label className={`font-mono font-bold uppercase ${labelText}`} style={fluidLabelStyle}>
-              {isCN ? '云雾 API KEY（令牌）' : 'YUNWU API KEY (TOKEN)'}
-              <span className="ml-2 text-moke-red">*</span>
+              {isCN ? '图片页默认 BASE URL' : 'DEFAULT BASE URL'}
+              <span className={`ml-2 font-normal normal-case tracking-normal ${descText}`}>
+                ({isCN ? '可选 · 供应商留空时继承' : 'optional · inherited by suppliers'})
+              </span>
+            </label>
+            <input
+              type="text"
+              value={imageGlobalBaseUrl}
+              onChange={(e) => setImageGlobalBaseUrl(e.target.value)}
+              onKeyDown={inputShortcuts.onKeyDown}
+              spellCheck={false}
+              placeholder={isCN ? '留空 = 继续回退到当前文本认证地址' : 'Empty = fall back to the current text-auth base URL'}
+              className={`w-full font-mono border outline-none transition-colors ${inputBg} ${inputText} ${
+                validation.imageDefaultBaseUrlError ? 'border-red-500 focus:border-red-500' : inputBorder
+              }`}
+              style={fluidInputStyle}
+            />
+            {validation.imageDefaultBaseUrlError ? (
+              <p className="font-mono text-red-500" style={fluidHintStyle}>✕ {validation.imageDefaultBaseUrlError}</p>
+            ) : (
+              <p className={`font-mono ${descText}`} style={fluidHintStyle}>
+                {isCN ? '供应商 BASE URL 留空时使用这里；这里再为空，则回退当前文本认证的地址' : 'Supplier BASE URLs inherit this value first; if it is empty, the current text-auth base URL is used'}
+              </p>
+            )}
+          </div>
+
+          {/* 图片页默认 TOKEN */}
+          <div className="flex flex-col" style={{ gap: FLUID.gapSmall }}>
+            <label className={`font-mono font-bold uppercase ${labelText}`} style={fluidLabelStyle}>
+              {isCN ? '图片页默认 TOKEN' : 'DEFAULT TOKEN'}
+              <span className={`ml-2 font-normal normal-case tracking-normal ${descText}`}>
+                ({isCN ? '可选 · 供应商留空时继承' : 'optional · inherited by suppliers'})
+              </span>
             </label>
             <div className="relative">
               <input
-                type={showYunwuKey ? 'text' : 'password'}
-                value={yunwuApiKey}
-                onChange={(e) => setYunwuApiKey(e.target.value)}
+                type={showImageGlobalKey ? 'text' : 'password'}
+                value={imageGlobalApiKey}
+                onChange={(e) => setImageGlobalApiKey(e.target.value)}
                 onKeyDown={inputShortcuts.onKeyDown}
                 autoComplete="new-password"
                 spellCheck={false}
-                placeholder={isCN ? '从「令牌」页生成的 API Key' : 'API key from Tokens page'}
+                placeholder={isCN ? '留空 = 继续回退到当前文本认证 Token' : 'Empty = fall back to the current text-auth token'}
                 className={`w-full font-mono border outline-none transition-colors ${inputBg} ${inputText} ${inputBorder}`}
                 style={{ ...fluidInputStyle, paddingRight: 'clamp(2.25rem, 4vw, 3rem)' }}
               />
               <button
                 type="button"
-                onClick={() => setShowYunwuKey(!showYunwuKey)}
+                onClick={() => setShowImageGlobalKey(!showImageGlobalKey)}
                 className={`absolute right-[clamp(0.5rem,1vw,0.75rem)] top-1/2 -translate-y-1/2 rounded-sm transition-colors cursor-pointer ${isDark ? 'text-gray-600 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
                 style={{ padding: 'clamp(0.125rem, 0.4vw, 0.25rem)' }}
-                title={showYunwuKey ? (isCN ? '隐藏' : 'Hide') : (isCN ? '显示' : 'Show')}
+                title={showImageGlobalKey ? (isCN ? '隐藏' : 'Hide') : (isCN ? '显示' : 'Show')}
               >
-                {showYunwuKey ? (
+                {showImageGlobalKey ? (
                   <svg style={{ width: FLUID.iconSm, height: FLUID.iconSm }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
                   </svg>
@@ -750,98 +910,265 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
               <p className="font-mono text-yellow-500" style={fluidHintStyle}>⚠ {validation.apiKeyWarn}</p>
             ) : (
               <p className={`font-mono ${descText}`} style={fluidHintStyle}>
-                {isCN ? '从「令牌」页面点击「添加令牌」获取' : 'Generate from "Tokens" page'}
+                {isCN ? '供应商 Token 留空时会使用这里；这里再为空，则回退当前文本认证 Token' : 'Supplier tokens inherit this value first; if it is empty, the current text-auth token is used'}
               </p>
             )}
           </div>
 
-          {/* BASE URL + 三选一快速填充 */}
+          {/* 当前图片供应商 */}
           <div className="flex flex-col" style={{ gap: FLUID.gapSmall }}>
             <label className={`font-mono font-bold uppercase ${labelText}`} style={fluidLabelStyle}>
-              BASE URL
-              <span className="ml-2 text-moke-red">*</span>
-              <span className={`ml-2 font-normal normal-case tracking-normal ${descText}`}>
-                ({isCN ? '不同客户端建议依次尝试' : 'try in order if one fails'})
-              </span>
+              {isCN ? '当前图片供应商' : 'ACTIVE IMAGE PROVIDER'}
             </label>
-            <input
-              type="text"
-              value={yunwuBaseUrl}
-              onChange={(e) => setYunwuBaseUrl(e.target.value)}
-              onKeyDown={inputShortcuts.onKeyDown}
-              spellCheck={false}
-              placeholder="https://yunwu.ai"
-              className={`w-full font-mono border outline-none transition-colors ${inputBg} ${inputText} ${
-                validation.baseUrlError ? 'border-red-500 focus:border-red-500' : inputBorder
-              }`}
-              style={fluidInputStyle}
-            />
-            {/* 三个候选 chip */}
-            <div className="flex flex-wrap" style={{ gap: FLUID.gapSmall, marginTop: '0.125rem' }}>
-              {YUNWU_BASE_URLS.map((u) => (
+            <div className="flex flex-wrap" style={{ gap: FLUID.gapSmall }}>
+              {([
+                { key: 'google' as ImageGenerationProvider, label: 'GOOGLE' },
+                { key: 'openai' as ImageGenerationProvider, label: 'OPENAI' },
+              ]).map((provider) => (
                 <button
-                  key={u}
+                  key={provider.key}
                   type="button"
-                  onClick={() => setYunwuBaseUrl(u)}
-                  className={chipClass(yunwuBaseUrl.trim() === u)}
-                  style={{ ...chipStyle, minWidth: 'auto', textTransform: 'none' }}
+                  onClick={() => { setImageProvider(provider.key); setTestResult(null); }}
+                  className={chipClass(imageProvider === provider.key)}
+                  style={chipStyle}
                 >
-                  {u.replace('https://', '')}
+                  {provider.label}
                 </button>
               ))}
             </div>
-            {validation.baseUrlError ? (
-              <p className="font-mono text-red-500" style={fluidHintStyle}>✕ {validation.baseUrlError}</p>
-            ) : (
-              <p className={`font-mono ${descText}`} style={fluidHintStyle}>
-                {isCN ? '点击上方候选可快速填充；保存时会自动归一化路径' : 'Click a chip to fill; path is normalized on save'}
-              </p>
-            )}
-          </div>
-
-          {/* 模型名称 */}
-          <div className="flex flex-col" style={{ gap: FLUID.gapSmall }}>
-            <label className={`font-mono font-bold uppercase ${labelText}`} style={fluidLabelStyle}>
-              {isCN ? '模型名称' : 'MODEL'}
-              <span className="ml-2 text-moke-red">*</span>
-              <span className={`ml-2 font-normal normal-case tracking-normal ${descText}`}>
-                ({isCN ? '首页「支持模型」列表第一列' : 'first column of supported models'})
-              </span>
-            </label>
-            <input
-              type="text"
-              value={yunwuModel}
-              onChange={(e) => setYunwuModel(e.target.value)}
-              onKeyDown={inputShortcuts.onKeyDown}
-              spellCheck={false}
-              placeholder="gemini-3.1-flash-image-preview"
-              className={`w-full font-mono border outline-none transition-colors ${inputBg} ${inputText} ${inputBorder}`}
-              style={fluidInputStyle}
-            />
             <p className={`font-mono ${descText}`} style={fluidHintStyle}>
-              {isCN ? '请填写云雾后台「支持模型」列表中第一列的模型名（如 gemini-3.1-flash-image-preview）' : 'Use the model name from the first column of supported models'}
+              {imageProvider === 'google'
+                ? (isCN
+                  ? `当前走 Google 供应商；图像模型沿用 Gemini 官方页：${localImageModel || '未设置'}`
+                  : `Google supplier is active; the image model follows the Gemini Official tab: ${localImageModel || 'unset'}`)
+                : (isCN
+                  ? '当前走 OpenAI 兼容 Images 协议；有参考图时自动走 edits，无参考图时自动走 generations'
+                  : 'The OpenAI-compatible Images API is active; reference images automatically switch the request from generations to edits')}
             </p>
           </div>
 
-          {/* 配置示例 */}
-          <details className={`border ${borderColor} rounded-sm`} style={{ padding: `clamp(0.5rem, 1vw, 0.75rem)` }}>
-            <summary
-              className={`font-mono font-bold uppercase cursor-pointer ${labelText}`}
-              style={{ fontSize: FLUID.label, letterSpacing: '0.15em' }}
-            >
-              {isCN ? '查看配置示例 JSON' : 'View example JSON'}
-            </summary>
-            <pre
-              className={`font-mono ${isDark ? 'text-gray-400' : 'text-gray-600'} whitespace-pre-wrap break-all`}
-              style={{ fontSize: FLUID.hint, marginTop: '0.5rem', lineHeight: 1.6 }}
-            >
-{`{
-  "base_url": "${yunwuBaseUrl || 'https://yunwu.ai'}",
-  "api_key": "${yunwuApiKey ? '***' + yunwuApiKey.slice(-4) : 'your_token_here'}",
-  "model": "${yunwuModel || 'selected_model_name'}"
-}`}
-            </pre>
-          </details>
+          {/* Google 供应商 */}
+          <div
+            className={`border ${
+              imageProvider === 'google'
+                ? (isDark ? 'border-cyan-700 bg-cyan-950/20' : 'border-cyan-300 bg-cyan-50/60')
+                : borderColor
+            }`}
+            style={{ padding: `clamp(0.625rem, 1.1vw, 0.875rem)`, borderRadius: FLUID.radius }}
+          >
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <p className={`font-mono font-bold ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`} style={{ fontSize: FLUID.label, letterSpacing: '0.12em' }}>
+                  GOOGLE / GEMINI IMAGES
+                </p>
+                <p className={`font-mono ${descText}`} style={{ fontSize: FLUID.hint, marginTop: '0.25rem', lineHeight: 1.6 }}>
+                  {isCN ? '图像模型沿用 Gemini 官方页设置；这里只配置图片请求专用的地址与 Token 覆盖。' : 'The image model follows the Gemini Official tab; this section only adds image-routing base URL and token overrides.'}
+                </p>
+              </div>
+              {imageProvider === 'google' && (
+                <span className={`font-mono font-bold uppercase ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`} style={{ fontSize: FLUID.hint, letterSpacing: '0.15em' }}>
+                  {isCN ? '当前启用' : 'ACTIVE'}
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-col" style={{ gap: FLUID.gapVert, marginTop: 'clamp(0.75rem, 1vw, 1rem)' }}>
+              <div className="flex flex-col" style={{ gap: FLUID.gapSmall }}>
+                <label className={`font-mono font-bold uppercase ${labelText}`} style={fluidLabelStyle}>
+                  {isCN ? '图像模型' : 'IMAGE MODEL'}
+                </label>
+                <div className={`w-full font-mono border ${inputBg} ${inputText} ${borderColor}`} style={fluidInputStyle}>
+                  {localImageModel || (isCN ? '未设置（将回退官方默认模型）' : 'Unset (falls back to the default official model)')}
+                </div>
+              </div>
+
+              <div className="flex flex-col" style={{ gap: FLUID.gapSmall }}>
+                <label className={`font-mono font-bold uppercase ${labelText}`} style={fluidLabelStyle}>
+                  BASE URL OVERRIDE
+                  <span className={`ml-2 font-normal normal-case tracking-normal ${descText}`}>
+                    ({isCN ? '可选' : 'optional'})
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  value={googleBaseUrl}
+                  onChange={(e) => setGoogleBaseUrl(e.target.value)}
+                  onKeyDown={inputShortcuts.onKeyDown}
+                  spellCheck={false}
+                  placeholder={isCN ? '留空 = 继承图片页默认 BASE URL' : 'Empty = inherit the image-tab default base URL'}
+                  className={`w-full font-mono border outline-none transition-colors ${inputBg} ${inputText} ${
+                    validation.googleBaseUrlError ? 'border-red-500 focus:border-red-500' : inputBorder
+                  }`}
+                  style={fluidInputStyle}
+                />
+                {validation.googleBaseUrlError ? (
+                  <p className="font-mono text-red-500" style={fluidHintStyle}>✕ {validation.googleBaseUrlError}</p>
+                ) : (
+                  <p className={`font-mono ${descText}`} style={fluidHintStyle}>
+                    {isCN ? `当前生效地址：${resolveImageBaseUrl('google') || '未设置'}` : `Effective base URL: ${resolveImageBaseUrl('google') || 'unset'}`}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-col" style={{ gap: FLUID.gapSmall }}>
+                <label className={`font-mono font-bold uppercase ${labelText}`} style={fluidLabelStyle}>
+                  TOKEN OVERRIDE
+                  <span className={`ml-2 font-normal normal-case tracking-normal ${descText}`}>
+                    ({isCN ? '可选' : 'optional'})
+                  </span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showGoogleKey ? 'text' : 'password'}
+                    value={googleApiKey}
+                    onChange={(e) => setGoogleApiKey(e.target.value)}
+                    onKeyDown={inputShortcuts.onKeyDown}
+                    autoComplete="new-password"
+                    spellCheck={false}
+                    placeholder={isCN ? '留空 = 继承图片页默认 Token' : 'Empty = inherit the image-tab default token'}
+                    className={`w-full font-mono border outline-none transition-colors ${inputBg} ${inputText} ${inputBorder}`}
+                    style={{ ...fluidInputStyle, paddingRight: 'clamp(2.25rem, 4vw, 3rem)' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowGoogleKey(!showGoogleKey)}
+                    className={`absolute right-[clamp(0.5rem,1vw,0.75rem)] top-1/2 -translate-y-1/2 rounded-sm transition-colors cursor-pointer ${isDark ? 'text-gray-600 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
+                    style={{ padding: 'clamp(0.125rem, 0.4vw, 0.25rem)' }}
+                    title={showGoogleKey ? (isCN ? '隐藏' : 'Hide') : (isCN ? '显示' : 'Show')}
+                  >
+                    {showGoogleKey ? (
+                      <svg style={{ width: FLUID.iconSm, height: FLUID.iconSm }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                      </svg>
+                    ) : (
+                      <svg style={{ width: FLUID.iconSm, height: FLUID.iconSm }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+                <p className={`font-mono ${descText}`} style={fluidHintStyle}>
+                  {isCN ? `当前生效认证：${getEffectiveImageAuthDraft('google').label}` : `Effective auth: ${getEffectiveImageAuthDraft('google').label}`}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* OpenAI 供应商 */}
+          <div
+            className={`border ${
+              imageProvider === 'openai'
+                ? (isDark ? 'border-cyan-700 bg-cyan-950/20' : 'border-cyan-300 bg-cyan-50/60')
+                : borderColor
+            }`}
+            style={{ padding: `clamp(0.625rem, 1.1vw, 0.875rem)`, borderRadius: FLUID.radius }}
+          >
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <p className={`font-mono font-bold ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`} style={{ fontSize: FLUID.label, letterSpacing: '0.12em' }}>
+                  OPENAI COMPATIBLE / GPT-IMAGE-2
+                </p>
+                <p className={`font-mono ${descText}`} style={{ fontSize: FLUID.hint, marginTop: '0.25rem', lineHeight: 1.6 }}>
+                  {isCN ? '用于 OpenAI Images 兼容站点；有参考图时自动切换到 edits，无参考图时自动走 generations。' : 'For OpenAI Images compatible endpoints; reference images automatically switch requests to edits, otherwise generations is used.'}
+                </p>
+              </div>
+              {imageProvider === 'openai' && (
+                <span className={`font-mono font-bold uppercase ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`} style={{ fontSize: FLUID.hint, letterSpacing: '0.15em' }}>
+                  {isCN ? '当前启用' : 'ACTIVE'}
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-col" style={{ gap: FLUID.gapVert, marginTop: 'clamp(0.75rem, 1vw, 1rem)' }}>
+              <div className="flex flex-col" style={{ gap: FLUID.gapSmall }}>
+                <label className={`font-mono font-bold uppercase ${labelText}`} style={fluidLabelStyle}>
+                  MODEL
+                </label>
+                <input
+                  type="text"
+                  value={openaiModel}
+                  onChange={(e) => setOpenaiModel(e.target.value)}
+                  onKeyDown={inputShortcuts.onKeyDown}
+                  spellCheck={false}
+                  placeholder={FALLBACK_OPENAI_IMAGE_MODEL}
+                  className={`w-full font-mono border outline-none transition-colors ${inputBg} ${inputText} ${inputBorder}`}
+                  style={fluidInputStyle}
+                />
+              </div>
+
+              <div className="flex flex-col" style={{ gap: FLUID.gapSmall }}>
+                <label className={`font-mono font-bold uppercase ${labelText}`} style={fluidLabelStyle}>
+                  BASE URL OVERRIDE
+                  <span className={`ml-2 font-normal normal-case tracking-normal ${descText}`}>
+                    ({isCN ? '可选' : 'optional'})
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  value={openaiBaseUrl}
+                  onChange={(e) => setOpenaiBaseUrl(e.target.value)}
+                  onKeyDown={inputShortcuts.onKeyDown}
+                  spellCheck={false}
+                  placeholder={isCN ? '留空 = 继承图片页默认 BASE URL' : 'Empty = inherit the image-tab default base URL'}
+                  className={`w-full font-mono border outline-none transition-colors ${inputBg} ${inputText} ${
+                    validation.openaiBaseUrlError ? 'border-red-500 focus:border-red-500' : inputBorder
+                  }`}
+                  style={fluidInputStyle}
+                />
+                {validation.openaiBaseUrlError ? (
+                  <p className="font-mono text-red-500" style={fluidHintStyle}>✕ {validation.openaiBaseUrlError}</p>
+                ) : (
+                  <p className={`font-mono ${descText}`} style={fluidHintStyle}>
+                    {isCN ? `当前生效地址：${resolveImageBaseUrl('openai') || '未设置'}` : `Effective base URL: ${resolveImageBaseUrl('openai') || 'unset'}`}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-col" style={{ gap: FLUID.gapSmall }}>
+                <label className={`font-mono font-bold uppercase ${labelText}`} style={fluidLabelStyle}>
+                  TOKEN OVERRIDE
+                  <span className={`ml-2 font-normal normal-case tracking-normal ${descText}`}>
+                    ({isCN ? '可选' : 'optional'})
+                  </span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showOpenaiKey ? 'text' : 'password'}
+                    value={openaiApiKey}
+                    onChange={(e) => setOpenaiApiKey(e.target.value)}
+                    onKeyDown={inputShortcuts.onKeyDown}
+                    autoComplete="new-password"
+                    spellCheck={false}
+                    placeholder={isCN ? '留空 = 继承图片页默认 Token' : 'Empty = inherit the image-tab default token'}
+                    className={`w-full font-mono border outline-none transition-colors ${inputBg} ${inputText} ${inputBorder}`}
+                    style={{ ...fluidInputStyle, paddingRight: 'clamp(2.25rem, 4vw, 3rem)' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowOpenaiKey(!showOpenaiKey)}
+                    className={`absolute right-[clamp(0.5rem,1vw,0.75rem)] top-1/2 -translate-y-1/2 rounded-sm transition-colors cursor-pointer ${isDark ? 'text-gray-600 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
+                    style={{ padding: 'clamp(0.125rem, 0.4vw, 0.25rem)' }}
+                    title={showOpenaiKey ? (isCN ? '隐藏' : 'Hide') : (isCN ? '显示' : 'Show')}
+                  >
+                    {showOpenaiKey ? (
+                      <svg style={{ width: FLUID.iconSm, height: FLUID.iconSm }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                      </svg>
+                    ) : (
+                      <svg style={{ width: FLUID.iconSm, height: FLUID.iconSm }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+                <p className={`font-mono ${descText}`} style={fluidHintStyle}>
+                  {isCN ? `当前生效认证：${getEffectiveImageAuthDraft('openai').label}` : `Effective auth: ${getEffectiveImageAuthDraft('openai').label}`}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
         )}
 
