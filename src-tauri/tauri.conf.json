@@ -5,7 +5,7 @@
   "version": "../package.json",
   "identifier": "ai.rytesa.moke-vision-one",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "npm run dev:tauri",
     "beforeBuildCommand": "npm run build",
     "devUrl": "http://localhost:3000",
     "frontendDist": "../dist"

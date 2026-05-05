@@ -36,6 +36,27 @@ export const XiaohongshuLink: React.FC<XiaohongshuLinkProps> = ({
 }) => {
   const [isHover, setIsHover] = useState(false);
 
+  const handleClick = async (event: React.MouseEvent<HTMLAnchorElement>) => {
+    const openExternal = typeof window !== 'undefined'
+      ? (window as any).electronAPI?.openExternal as ((url: string) => Promise<{ success: boolean; error?: string }>) | undefined
+      : undefined;
+
+    if (!openExternal) {
+      return;
+    }
+
+    event.preventDefault();
+
+    try {
+      const result = await openExternal(href);
+      if (!result?.success) {
+        window.open(href, '_blank', 'noopener,noreferrer');
+      }
+    } catch {
+      window.open(href, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   // 防御性：无效链接直接不渲染
   if (!href || typeof href !== 'string') {
     return null;
@@ -59,6 +80,7 @@ export const XiaohongshuLink: React.FC<XiaohongshuLinkProps> = ({
       rel="noopener noreferrer"
       title={title}
       aria-label={title}
+      onClick={handleClick}
       onMouseEnter={() => setIsHover(true)}
       onMouseLeave={() => setIsHover(false)}
       className={[

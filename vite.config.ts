@@ -8,6 +8,7 @@ export default defineConfig(() => {
       base: './',
       server: {
         port: 3000,
+        strictPort: true,
         host: '0.0.0.0',
         // 避免 Vite 扫描桌面打包输出目录，防止 dep-scan 把 release/ 内的 html 当作入口
         fs: {

@@ -1784,7 +1784,7 @@ dependencies = [
 
 [[package]]
 name = "moke-vision-one"
-version = "3.7.3"
+version = "3.7.5"
 dependencies = [
  "base64 0.22.1",
  "keyring",

@@ -24,6 +24,7 @@ import { GlobalAssetProvider } from './contexts/GlobalAssetContext';
 import { AutoSavePanel } from './components/AutoSavePanel';
 import { AutoSaveSettings, loadAutoSaveSettings, autoSaveImage, autoSaveText } from './services/autoSaveService';
 import { AttachedImage } from './components/PromptInput';
+import { loadStoredCollection, saveStoredCollection } from './services/assetLibraryStorage';
 import { InteractiveParticles } from './components/effects/InteractiveParticles';
 import { IndustrialDecorBundle } from './components/effects/IndustrialDecorBundle';
 import { HeaderBar } from './components/HeaderBar';
@@ -45,6 +46,19 @@ interface QuantumCameraProps {
   onBack: () => void;
 }
 
+const GALLERY_RECORD_KEY = 'capture-gallery';
+const GALLERY_STORAGE_KEY = 'moke_capture_gallery';
+
+function mergeGalleryItems(currentItems: CapturedImage[], loadedItems: CapturedImage[]): CapturedImage[] {
+  if (currentItems.length === 0) {
+    return loadedItems;
+  }
+
+  const seenIds = new Set(currentItems.map((item) => item.id));
+  const merged = [...currentItems, ...loadedItems.filter((item) => !seenIds.has(item.id))];
+  return merged.sort((left, right) => right.timestamp - left.timestamp);
+}
+
 // Internal component to use context
 const QuantumCamera: React.FC<QuantumCameraProps> = ({ onBack }) => {
   const { lang, toggleLang } = useLanguage();
@@ -57,6 +71,7 @@ const QuantumCamera: React.FC<QuantumCameraProps> = ({ onBack }) => {
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([]);
   const [lastCapturedImage, setLastCapturedImage] = useState<string | null>(null);
   const [gallery, setGallery] = useState<CapturedImage[]>([]);
+  const [galleryHydrated, setGalleryHydrated] = useState<boolean>(false);
   const [zoomImage, setZoomImage] = useState<string | null>(null);
   const [showFilmSystem, setShowFilmSystem] = useState<boolean>(false);
   const [lockedFilmStyle, setLockedFilmStyle] = useState<string>("");
@@ -82,6 +97,45 @@ const QuantumCamera: React.FC<QuantumCameraProps> = ({ onBack }) => {
   useEffect(() => {
     loadAutoSaveSettings().then(setAutoSaveSettings);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void loadStoredCollection<CapturedImage>(GALLERY_RECORD_KEY, GALLERY_STORAGE_KEY)
+      .then((loadedGallery) => {
+        if (cancelled) {
+          return;
+        }
+
+        setGallery((currentGallery) => mergeGalleryItems(currentGallery, loadedGallery));
+      })
+      .catch((error) => {
+        console.error('读取作品集失败:', error);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setGalleryHydrated(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!galleryHydrated) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void saveStoredCollection(GALLERY_RECORD_KEY, GALLERY_STORAGE_KEY, gallery).catch((error) => {
+        console.error('保存作品集失败:', error);
+      });
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [gallery, galleryHydrated]);
 
   // 安全退出：关闭所有子窗口/模态后再返回 IntroPage
   const handleExit = () => {

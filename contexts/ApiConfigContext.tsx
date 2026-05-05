@@ -15,7 +15,7 @@ import {
 } from '../services/imageGenerationService';
 import { setRuntimeApiConfig } from '../services/geminiService';
 import { setChatGeminiConfig } from '../services/chatService';
-import { secureLoadWithMigration, secureSave } from '../services/secureStorage';
+import { getSecureStorage, secureSave } from '../services/secureStorage';
 
 const FALLBACK_TEXT_MODEL_GEMINI = 'gemini-3-flash-preview';
 
@@ -67,6 +67,7 @@ export interface ApiConfig {
 interface ApiConfigContextType {
   config: ApiConfig;
   updateConfig: (newConfig: Partial<ApiConfig>) => void;
+  saveConfig: (newConfig: Partial<ApiConfig>) => Promise<void>;
   isConfigured: boolean;
 }
 
@@ -194,6 +195,73 @@ const mergeConfig = (parsed: any): ApiConfig => {
   };
 };
 
+const mergeConfigUpdate = (prev: ApiConfig, newConfig: Partial<ApiConfig>): ApiConfig => {
+  const { defaultImageStrategy: _prevLegacyDefaultImageStrategy, ...restPrev } = prev as ApiConfig & { defaultImageStrategy?: unknown };
+  const { defaultImageStrategy: _newLegacyDefaultImageStrategy, ...restNewConfig } = newConfig as Partial<ApiConfig> & { defaultImageStrategy?: unknown };
+  const { defaultStrategy: _prevLegacyImageStrategy, ...prevImageGeneration } = ((prev.imageGeneration || {}) as ImageGenerationConfig & { defaultStrategy?: unknown });
+  const { defaultStrategy: _newLegacyImageStrategy, ...nextImageGeneration } = ((newConfig.imageGeneration || {}) as Partial<ImageGenerationConfig> & { defaultStrategy?: unknown });
+
+  const mergedImageGeneration: ImageGenerationConfig = {
+    ...emptyImageGeneration,
+    ...prevImageGeneration,
+    ...nextImageGeneration,
+    google: {
+      ...emptyImageGeneration.google,
+      ...(prev.imageGeneration?.google || {}),
+      ...(newConfig.imageGeneration?.google || {}),
+    },
+    openai: {
+      ...emptyImageGeneration.openai,
+      ...(prev.imageGeneration?.openai || {}),
+      ...(newConfig.imageGeneration?.openai || {}),
+    },
+  };
+
+  return {
+    ...restPrev,
+    ...restNewConfig,
+    custom: newConfig.custom
+      ? { ...(prev.custom || emptyCustom), ...newConfig.custom }
+      : prev.custom,
+    imageGeneration: mergedImageGeneration,
+  };
+};
+
+const serializeConfig = (config: ApiConfig): string => JSON.stringify(config);
+
+const countFilledStrings = (value: unknown): number => {
+  if (typeof value === 'string') {
+    return value.trim() ? 1 : 0;
+  }
+
+  if (Array.isArray(value)) {
+    return value.reduce((total, item) => total + countFilledStrings(item), 0);
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.values(value).reduce((total, item) => total + countFilledStrings(item), 0);
+  }
+
+  return 0;
+};
+
+const choosePreferredConfig = (...candidates: Array<ApiConfig | null | undefined>): ApiConfig => {
+  let preferred: ApiConfig | null = null;
+  let preferredScore = -1;
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+
+    const score = countFilledStrings(candidate);
+    if (!preferred || score > preferredScore) {
+      preferred = candidate;
+      preferredScore = score;
+    }
+  }
+
+  return preferred || emptyConfig;
+};
+
 const loadConfig = (): ApiConfig => {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -264,40 +332,68 @@ const ApiConfigContext = createContext<ApiConfigContextType | undefined>(undefin
 
 export const ApiConfigProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [config, setConfig] = useState<ApiConfig>(loadConfig);
-  const [secureReady, setSecureReady] = React.useState(false);
+  const [hydrated, setHydrated] = React.useState(false);
+  const configRef = React.useRef<ApiConfig>(config);
+  const lastPersistedRef = React.useRef<string>(serializeConfig(config));
+
+  useEffect(() => {
+    configRef.current = config;
+  }, [config]);
+
+  const persistConfig = React.useCallback(async (nextConfig: ApiConfig) => {
+    const serialized = serializeConfig(nextConfig);
+    localStorage.setItem(STORAGE_KEY, serialized);
+
+    try {
+      await secureSave(SECURE_STORAGE_KEY, nextConfig);
+    } catch (error) {
+      console.error('[ApiConfig] 保存到安全存储失败，已保留本地快照:', error);
+    }
+
+    lastPersistedRef.current = serialized;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const localSnapshot = loadConfig();
       try {
-        const loaded = await secureLoadWithMigration<any>(SECURE_STORAGE_KEY, STORAGE_KEY);
-        if (!cancelled && loaded) {
-          setConfig(mergeConfig(loaded));
+        const store = await getSecureStorage();
+        const loaded = await store.load(SECURE_STORAGE_KEY);
+        const secureSnapshot = loaded ? mergeConfig(loaded) : null;
+        const preferred = choosePreferredConfig(localSnapshot, secureSnapshot);
+        const preferredSerialized = serializeConfig(preferred);
+        const secureSerialized = secureSnapshot ? serializeConfig(secureSnapshot) : null;
+        const localSerialized = serializeConfig(localSnapshot);
+
+        if (!cancelled && preferredSerialized !== serializeConfig(configRef.current)) {
+          configRef.current = preferred;
+          setConfig(preferred);
+        }
+
+        if (!cancelled && countFilledStrings(preferred) > 0 && (preferredSerialized !== secureSerialized || preferredSerialized !== localSerialized)) {
+          await persistConfig(preferred);
+        } else {
+          lastPersistedRef.current = preferredSerialized;
         }
       } catch (error) {
-        console.warn('[ApiConfig] 安全存储初始化失败，继续使用 localStorage:', error);
+        console.warn('[ApiConfig] 安全存储读取失败，继续使用本地快照:', error);
+        lastPersistedRef.current = serializeConfig(localSnapshot);
       } finally {
-        if (!cancelled) setSecureReady(true);
+        if (!cancelled) setHydrated(true);
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [persistConfig]);
 
   useEffect(() => {
-    if (!secureReady) return;
-    (async () => {
-      try {
-        await secureSave(SECURE_STORAGE_KEY, config);
-      } catch (error) {
-        console.error('[ApiConfig] 保存到安全存储失败，降级 localStorage:', error);
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-        } catch (fallbackError) {
-          console.error('保存 API 配置失败:', fallbackError);
-        }
-      }
-    })();
-  }, [config, secureReady]);
+    if (!hydrated) return;
+
+    const serialized = serializeConfig(config);
+    if (serialized === lastPersistedRef.current) return;
+
+    void persistConfig(config);
+  }, [config, hydrated, persistConfig]);
 
   useEffect(() => {
     const textRuntime = resolveActiveTextRuntimeConfig(config);
@@ -329,44 +425,21 @@ export const ApiConfigProvider: React.FC<{ children: ReactNode }> = ({ children 
   }, [config]);
 
   const updateConfig = (newConfig: Partial<ApiConfig>) => {
-    setConfig((prev) => {
-      const { defaultImageStrategy: _prevLegacyDefaultImageStrategy, ...restPrev } = prev as ApiConfig & { defaultImageStrategy?: unknown };
-      const { defaultImageStrategy: _newLegacyDefaultImageStrategy, ...restNewConfig } = newConfig as Partial<ApiConfig> & { defaultImageStrategy?: unknown };
-      const { defaultStrategy: _prevLegacyImageStrategy, ...prevImageGeneration } = ((prev.imageGeneration || {}) as ImageGenerationConfig & { defaultStrategy?: unknown });
-      const { defaultStrategy: _newLegacyImageStrategy, ...nextImageGeneration } = ((newConfig.imageGeneration || {}) as Partial<ImageGenerationConfig> & { defaultStrategy?: unknown });
-
-      const mergedImageGeneration: ImageGenerationConfig = {
-        ...emptyImageGeneration,
-        ...prevImageGeneration,
-        ...nextImageGeneration,
-        google: {
-          ...emptyImageGeneration.google,
-          ...(prev.imageGeneration?.google || {}),
-          ...(newConfig.imageGeneration?.google || {}),
-        },
-        openai: {
-          ...emptyImageGeneration.openai,
-          ...(prev.imageGeneration?.openai || {}),
-          ...(newConfig.imageGeneration?.openai || {}),
-        },
-      };
-
-      return {
-        ...restPrev,
-        ...restNewConfig,
-        custom: newConfig.custom
-          ? { ...(prev.custom || emptyCustom), ...newConfig.custom }
-          : prev.custom,
-        imageGeneration: mergedImageGeneration,
-      };
-    });
+    setConfig((prev) => mergeConfigUpdate(prev, newConfig));
   };
+
+  const saveConfig = React.useCallback(async (newConfig: Partial<ApiConfig>) => {
+    const nextConfig = mergeConfigUpdate(configRef.current, newConfig);
+    configRef.current = nextConfig;
+    setConfig(nextConfig);
+    await persistConfig(nextConfig);
+  }, [persistConfig]);
 
   const textRuntime = resolveActiveTextRuntimeConfig(config);
   const isConfigured = !!textRuntime.apiKey && (config.provider !== 'custom' || !!textRuntime.baseUrl);
 
   return (
-    <ApiConfigContext.Provider value={{ config, updateConfig, isConfigured }}>
+    <ApiConfigContext.Provider value={{ config, updateConfig, saveConfig, isConfigured }}>
       {children}
     </ApiConfigContext.Provider>
   );

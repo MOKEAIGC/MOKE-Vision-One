@@ -128,6 +128,20 @@ fn open_folder(folder_path: String) -> FileOperationResult {
 }
 
 #[tauri::command]
+fn open_external_url(url: String) -> CommandResult {
+    match open::that(url.as_str()) {
+        Ok(_) => CommandResult {
+            success: true,
+            error: None,
+        },
+        Err(error) => CommandResult {
+            success: false,
+            error: Some(error.to_string()),
+        },
+    }
+}
+
+#[tauri::command]
 fn secure_is_available() -> SecureAvailabilityResult {
     match Entry::new(KEYRING_SERVICE, "availability-check") {
         Ok(_) => SecureAvailabilityResult {
@@ -226,6 +240,7 @@ fn main() {
             write_base64_file_at_path,
             write_binary_file_at_path,
             open_folder,
+            open_external_url,
             secure_is_available,
             secure_get,
             secure_set,

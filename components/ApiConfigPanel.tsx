@@ -14,7 +14,7 @@ interface ApiConfigPanelProps {
 }
 
 export const ApiConfigPanel: React.FC<ApiConfigPanelProps> = ({ onClose }) => {
-  const { config, updateConfig, isConfigured } = useApiConfig();
+  const { config, saveConfig, isConfigured } = useApiConfig();
   const { isDark } = useTheme();
   const { lang } = useLanguage();
 
@@ -52,8 +52,8 @@ export const ApiConfigPanel: React.FC<ApiConfigPanelProps> = ({ onClose }) => {
     setLocalModel(config.model);
   }, [config]);
 
-  const handleSave = () => {
-    updateConfig({
+  const handleSave = async () => {
+    await saveConfig({
       baseUrl: localBaseUrl.trim(),
       apiKey: localApiKey.trim(),
       model: localModel.trim(),

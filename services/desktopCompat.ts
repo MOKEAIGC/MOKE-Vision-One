@@ -26,6 +26,7 @@ type DesktopCompatAPI = {
   isElectron: boolean;
   runtime: 'tauri';
   platform: string;
+  openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
   selectFolder: () => Promise<string | null>;
   saveFile: (folderPath: string, fileName: string, base64Data: string) => Promise<FileOperationResult>;
   saveTextFile: (folderPath: string, fileName: string, content: string) => Promise<FileOperationResult>;
@@ -118,6 +119,7 @@ export async function installDesktopCompat(): Promise<void> {
     isElectron: true,
     runtime: 'tauri',
     platform: detectPlatform(),
+    openExternal: async (url) => invokeTauri<{ success: boolean; error?: string }>('open_external_url', { url }),
     selectFolder: async () => {
       const selected = await open({
         directory: true,

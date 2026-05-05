@@ -2,6 +2,7 @@
 // 全局资产库 Context — 跨窗口共享的剧本提取资产管理
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { loadGlobalAssetLibrary, saveGlobalAssetLibrary } from '../services/assetLibraryStorage';
 
 // 全局资产条目类型
 export interface GlobalAssetItem {
@@ -52,33 +53,60 @@ const compressThumbnail = (base64DataUrl: string, maxSize: number = 200): Promis
   });
 };
 
-// 从 localStorage 加载资产
-const loadAssets = (): GlobalAssetItem[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch (e) {
-    console.error('读取全局资产库失败:', e);
+function mergeAssets(currentAssets: GlobalAssetItem[], loadedAssets: GlobalAssetItem[]): GlobalAssetItem[] {
+  if (currentAssets.length === 0) {
+    return loadedAssets;
   }
-  return [];
-};
+
+  const seenIds = new Set(currentAssets.map((asset) => asset.id));
+  const merged = [...currentAssets, ...loadedAssets.filter((asset) => !seenIds.has(asset.id))];
+  return merged.sort((left, right) => right.timestamp - left.timestamp);
+}
 
 const GlobalAssetContext = createContext<GlobalAssetContextType | undefined>(undefined);
 
 export const GlobalAssetProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [assets, setAssets] = useState<GlobalAssetItem[]>(loadAssets);
+  const [assets, setAssets] = useState<GlobalAssetItem[]>([]);
+  const [hasHydrated, setHasHydrated] = useState(false);
 
-  // 防抖写入 localStorage
   useEffect(() => {
+    let cancelled = false;
+
+    void loadGlobalAssetLibrary<GlobalAssetItem>()
+      .then((loadedAssets) => {
+        if (cancelled) {
+          return;
+        }
+
+        setAssets((currentAssets) => mergeAssets(currentAssets, loadedAssets));
+      })
+      .catch((error) => {
+        console.error('读取全局资产库失败:', error);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setHasHydrated(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasHydrated) {
+      return;
+    }
+
     const timer = setTimeout(() => {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(assets));
-      } catch (e) {
-        console.error('保存全局资产库失败，可能 localStorage 已满:', e);
-      }
+      void saveGlobalAssetLibrary(assets).catch((error) => {
+        console.error('保存全局资产库失败:', error);
+      });
     }, 300);
+
     return () => clearTimeout(timer);
-  }, [assets]);
+  }, [assets, hasHydrated]);
 
   const addAsset = useCallback(async (asset: Omit<GlobalAssetItem, 'id' | 'timestamp'>) => {
     const thumbnail = await compressThumbnail(asset.fullImageBase64);

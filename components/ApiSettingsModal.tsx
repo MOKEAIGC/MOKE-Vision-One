@@ -21,7 +21,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ReactDOM from 'react-dom';
-import { useApiConfig, ApiProvider, ImageGenerationProvider } from '../contexts/ApiConfigContext';
+import { useApiConfig, ApiConfig, ApiProvider, ImageGenerationProvider } from '../contexts/ApiConfigContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { testGeminiConnection, ApiTestResult } from '../services/geminiService';
@@ -68,7 +68,7 @@ const FLUID = {
 
 // ---------------- Component ----------------
 export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) => {
-  const { config, updateConfig, isConfigured } = useApiConfig();
+  const { config, saveConfig, isConfigured } = useApiConfig();
   const { isDark } = useTheme();
   const { lang } = useLanguage();
   const isCN = lang === 'CN';
@@ -111,6 +111,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
 
   // UI 瞬态
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<ApiTestResult | null>(null);
 
@@ -187,10 +188,10 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
   // ---------------- 工具：把本地状态整体写回 context ----------------
   // 两个窗口各自字段独立持久化；同时把当前激活 Tab 作为 provider 写回，
   // Context 会依据 provider 把对应字段注入底层 service 运行时。
-  const commitToContext = () => {
+  const buildDraftConfig = (): Partial<ApiConfig> => {
     const providerForSave: ApiProvider = activeTab === 'image' ? selectedTextProvider : activeTab;
 
-    updateConfig({
+    return {
       provider: providerForSave,
       baseUrl: localBaseUrl.trim(),
       apiKey: localApiKey.trim(),
@@ -221,22 +222,35 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
           apiKey: openaiApiKey.trim(),
         },
       },
-    });
+    };
   };
 
+  const commitToContext = () => saveConfig(buildDraftConfig());
+
   // 关闭即保存（X / 遮罩 / Esc 统一入口，防重入）
-  const handleCloseWithAutoSave = () => {
-    if (closedRef.current) return;
+  const handleCloseWithAutoSave = async () => {
+    if (closedRef.current || saving) return;
     closedRef.current = true;
-    commitToContext();
-    onClose();
+    setSaving(true);
+    try {
+      await commitToContext();
+      onClose();
+    } finally {
+      setSaving(false);
+    }
   };
 
   // 显式保存：写回 + 高亮提示 2s（不关闭）
-  const handleSave = () => {
-    commitToContext();
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await commitToContext();
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
   };
 
   // 取消：丢弃修改直接关闭
@@ -322,7 +336,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
   // 监听 Esc 关闭（走自动保存路径）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') handleCloseWithAutoSave();
+      if (e.key === 'Escape') void handleCloseWithAutoSave();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -515,6 +529,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
           <button
             type="button"
             onClick={handleCloseWithAutoSave}
+            disabled={saving}
             className={`rounded-sm border transition-all hover:border-moke-red hover:text-moke-red active:scale-95 cursor-pointer ${isDark ? 'border-gray-800 text-gray-500' : 'border-gray-300 text-gray-400'}`}
             style={{ padding: 'clamp(0.25rem, 0.6vw, 0.5rem)' }}
             title={isCN ? '关闭（自动保存）' : 'Close (auto-save)'}
@@ -1427,6 +1442,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
             <button
               type="button"
               onClick={handleReset}
+              disabled={saving}
               className={`font-mono font-bold tracking-widest uppercase border transition-all hover:border-moke-red hover:text-moke-red active:scale-95 cursor-pointer ${isDark ? 'border-gray-800 text-gray-500' : 'border-gray-300 text-gray-400'}`}
               style={fluidBtnStyle}
               title={isCN ? '清空所有字段（不保存）' : 'Clear all (no save)'}
@@ -1436,9 +1452,9 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
             <button
               type="button"
               onClick={handleTestConnection}
-              disabled={testing}
+              disabled={testing || saving}
               className={`font-mono font-bold tracking-widest uppercase border transition-all active:scale-95 ${
-                testing
+                testing || saving
                   ? (isDark ? 'border-gray-800 text-gray-700 cursor-wait' : 'border-gray-200 text-gray-300 cursor-wait')
                   : `cursor-pointer ${isDark
                       ? 'border-cyan-900 text-cyan-500 hover:border-cyan-600 hover:bg-cyan-950/30'
@@ -1477,6 +1493,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
             <button
               type="button"
               onClick={handleCancel}
+              disabled={saving}
               className={`font-mono font-bold tracking-widest uppercase border transition-all active:scale-95 cursor-pointer ${isDark ? 'border-gray-800 text-gray-500 hover:text-gray-300' : 'border-gray-300 text-gray-400 hover:text-gray-600'}`}
               style={fluidBtnStyle}
               title={isCN ? '取消并关闭（丢弃未保存修改）' : 'Cancel & close (discard unsaved changes)'}
@@ -1486,13 +1503,14 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
             <button
               type="button"
               onClick={handleSave}
+              disabled={saving}
               className="font-mono font-bold tracking-widest uppercase border border-moke-red bg-moke-red text-white transition-all hover:brightness-110 active:scale-95 shadow-lg cursor-pointer"
               style={{
                 ...fluidBtnStyle,
                 padding: `clamp(0.5rem, 1vw, 0.75rem) clamp(1rem, 2.4vw, 1.75rem)`,
               }}
             >
-              {isCN ? '保存并启用' : 'SAVE & ACTIVATE'}
+              {saving ? (isCN ? '保存中...' : 'SAVING...') : (isCN ? '保存并启用' : 'SAVE & ACTIVATE')}
             </button>
           </div>
         </div>
