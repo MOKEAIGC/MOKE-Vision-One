@@ -1,0 +1,16 @@
+[package]
+name = "moke-vision-one"
+version = "3.7.3"
+edition = "2021"
+description = "MOKE Vision One desktop runtime powered by Tauri 2"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+base64 = "0.22"
+keyring = "3"
+open = "5"
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
