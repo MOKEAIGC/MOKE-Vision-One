@@ -41,9 +41,9 @@
     "category": "Photography",
     "publisher": "MOKE",
     "icon": [
-      "../build/icon.png",
-      "../build/icon.ico",
-      "../build/icon.icns"
+      "icons/icon.png",
+      "icons/icon.ico",
+      "icons/icon.icns"
     ],
     "windows": {
       "webviewInstallMode": {

@@ -10,11 +10,11 @@
 - Rust stable toolchain
 - 对应平台的 Tauri 构建依赖
 
-应用图标继续放在 `build/` 目录：
+应用图标放在 `src-tauri/icons/` 目录，并随仓库一起提交：
 
-- `build/icon.png`
-- `build/icon.icns`
-- `build/icon.ico`
+- `src-tauri/icons/icon.png`
+- `src-tauri/icons/icon.icns`
+- `src-tauri/icons/icon.ico`
 
 ## 开发命令
 

@@ -43,3 +43,5 @@ MOKE Vision One 是一个基于 React + Vite 的 AI 图像生成桌面应用，�
 如果需要一键产出三平台完整制品，使用仓库内的 GitHub Actions 工作流：`.github/workflows/tauri-release-artifacts.yml`
 
 当推送 `v*` tag 时，该工作流还会把最终的 `.exe`、`.dmg`、源码 zip 和 checksum 文件自动上传到 GitHub Release。
+
+Tauri 打包使用的图标资源位于 `src-tauri/icons/`，避免被通用的 `build/` 忽略规则漏掉。
