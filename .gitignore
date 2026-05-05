@@ -20,6 +20,7 @@ release-prod
 
 # Rust / Tauri build
 src-tauri/target
+src-tauri/gen
 
 # Python cache
 __pycache__

@@ -1,98 +1,76 @@
-# MOKE Vision One — 桌面应用打包指南
+# MOKE Vision One — Tauri 2 桌面打包指南
 
-## 📦 环境准备
+当前桌面应用主框架已经切换为 Tauri 2 + Rust。本文件保留原路径，仅作为新的桌面打包说明。
 
-确保已安装 Node.js 18+ 和 npm。
+## 环境准备
 
-### 1. 安装依赖
+确保本机已安装：
+
+- Node.js 18+
+- Rust stable toolchain
+- 对应平台的 Tauri 构建依赖
+
+应用图标继续放在 `build/` 目录：
+
+- `build/icon.png`
+- `build/icon.icns`
+- `build/icon.ico`
+
+## 开发命令
 
 ```bash
 npm install
+npm run tauri:dev
 ```
 
-### 2. 准备应用图标
+`tauri:dev` 会先启动 Vite 开发服务器，再由 Tauri 2 加载桌面窗口。
 
-将应用图标放入 `build/` 目录：
-
-| 文件 | 平台 | 说明 |
-|---|---|---|
-| `build/icon.png` | 通用 | 至少 512x512 PNG |
-| `build/icon.icns` | macOS | macOS 图标格式 |
-| `build/icon.ico` | Windows | Windows 图标格式 |
-
-> 💡 如果没有 .icns 和 .ico，electron-builder 会尝试从 icon.png 自动转换。
-
----
-
-## 🚀 打包命令
-
-### 开发调试（Electron + Vite 热更新）
+## 构建命令
 
 ```bash
-npm run electron:dev
+npm run tauri:build:win:x64
+npm run tauri:build:mac:x64
+npm run tauri:build:mac:arm64
 ```
 
-### 打包 macOS 应用（.dmg）
+说明：
+
+- Windows x64 对应目标三元组：`x86_64-pc-windows-msvc`
+- macOS Intel 对应目标三元组：`x86_64-apple-darwin`
+- macOS Apple Silicon 对应目标三元组：`aarch64-apple-darwin`
+
+## 发布整理
+
+Tauri 原始 bundle 输出位于：
+
+```text
+src-tauri/target/<target-triple>/release/bundle/
+```
+
+执行下面命令会把可用安装包复制到 `release/`，并统一命名、生成源码 zip 与 SHA256 文件：
 
 ```bash
-npm run electron:build:mac
+npm run release:artifacts
 ```
 
-### 打包 Windows 应用（.exe 安装包）
+目标产物命名格式：
+
+- `moke-vision-one-windows-x64-<version>-release.exe`
+- `moke-vision-one-darwin-x64-<version>-release.dmg`
+- `moke-vision-one-darwin-arm64-<version>-release.dmg`
+
+附加产物：
+
+- `moke-vision-one-source-<version>.zip`
+- `moke-vision-one-checksums-<version>.txt`
+
+若要严格校验三类桌面安装包是否都已到位：
 
 ```bash
-npm run electron:build:win
+npm run release:verify
 ```
 
-### 同时打包 macOS + Windows
+## 兼容说明
 
-```bash
-npm run electron:build:all
-```
-
----
-
-## 📁 输出目录
-
-打包后的安装文件在 `release/` 目录：
-
-```
-release/
-├── MOKE Vision One-1.0.0.dmg          # macOS 安装镜像
-├── MOKE Vision One Setup 1.0.0.exe    # Windows 安装包
-└── ...
-```
-
----
-
-## ⚠️ 注意事项
-
-1. **跨平台打包限制**：
-   - macOS 应用（.dmg）只能在 **macOS** 上打包
-   - Windows 应用（.exe）可以在 macOS / Windows / Linux 上打包
-   
-2. **macOS 签名**（可选）：
-   如需分发给其他用户，需要 Apple Developer 证书签名。自用可跳过。
-
-3. **Tailwind CSS**：
-   当前使用 CDN 版 Tailwind（需联网）。如需完全离线，后续可改为 PostCSS + 本地 Tailwind。
-
-4. **Google Fonts**：
-   字体通过 CDN 加载。首次启动需联网加载字体，之后浏览器会缓存。
-
----
-
-## 🔧 项目结构
-
-```
-├── electron/
-│   ├── main.cjs          # Electron 主进程
-│   └── preload.cjs       # Preload 桥接脚本
-├── build/
-│   ├── icon.png           # 应用图标
-│   ├── icon.icns          # macOS 图标
-│   └── icon.ico           # Windows 图标
-├── dist/                  # Vite 构建输出（自动生成）
-├── release/               # Electron 打包输出（自动生成）
-└── package.json           # 含 electron-builder 配置
-```
+- `electron/` 目录当前仅保留为历史实现参考，不再参与主打包流程。
+- 前端仍沿用原有 `window.electronAPI` 形状，但在 Tauri 运行时会由兼容桥接层接管。

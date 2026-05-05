@@ -4,12 +4,12 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(() => {
     return {
-      // 使用相对路径，兼容 Electron file:// 协议加载
+      // 使用相对路径，兼容桌面 WebView 加载静态资源
       base: './',
       server: {
         port: 3000,
         host: '0.0.0.0',
-        // 避免 Vite 监听/扫描 Electron 打包产物目录，防止 dep-scan 把 release/ 内的 html 当作入口
+        // 避免 Vite 扫描桌面打包输出目录，防止 dep-scan 把 release/ 内的 html 当作入口
         fs: {
           allow: ['.'],
         },
@@ -30,7 +30,7 @@ export default defineConfig(() => {
           '@': path.resolve(__dirname, '.'),
         }
       },
-      // 显式声明入口，避免 Vite 扫描到 release/ 等 Electron 打包产物目录
+      // 显式声明入口，避免 Vite 扫描到 release/ 等桌面打包产物目录
       optimizeDeps: {
         entries: ['index.html', 'index.tsx', 'App.tsx'],
       },

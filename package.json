@@ -6,21 +6,25 @@
   "description": "虚拟量子相机 — AI 图像生成桌面应用",
   "author": "MOKE",
   "type": "module",
-  "main": "electron/main.cjs",
   "scripts": {
     "postinstall": "patch-package",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:3000 && electron .\"",
-    "electron:build": "vite build && electron-builder",
-    "electron:build:win": "vite build && electron-builder --win",
-    "electron:build:mac": "vite build && electron-builder --mac",
-    "electron:build:all": "vite build && electron-builder --win --mac",
-    "release:pack": "bash scripts/release-pack.sh",
-    "release:full": "npm run electron:build:all && npm run release:pack"
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:build:win:x64": "tauri build --target x86_64-pc-windows-msvc",
+    "tauri:build:mac:x64": "tauri build --target x86_64-apple-darwin",
+    "tauri:build:mac:arm64": "tauri build --target aarch64-apple-darwin",
+    "release:artifacts": "node scripts/package-tauri-release.mjs",
+    "release:verify": "node scripts/package-tauri-release.mjs --require-all",
+    "release:full:win:x64": "npm run tauri:build:win:x64 && npm run release:artifacts",
+    "release:full:mac:x64": "npm run tauri:build:mac:x64 && npm run release:artifacts",
+    "release:full:mac:arm64": "npm run tauri:build:mac:arm64 && npm run release:artifacts"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.8.0",
+    "@tauri-apps/plugin-dialog": "^2.4.0",
     "@google/genai": "^1.36.0",
     "@googlemaps/js-api-loader": "^2.0.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -41,76 +45,13 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.8.0",
     "@types/file-saver": "^2.0.7",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
-    "concurrently": "^9.1.2",
-    "electron": "^35.1.2",
-    "electron-builder": "^26.0.12",
     "patch-package": "^8.0.1",
     "typescript": "~5.8.2",
-    "vite": "^6.2.0",
-    "wait-on": "^8.0.3"
-  },
-  "build": {
-    "appId": "com.moke.vision-one",
-    "productName": "MOKE Vision One",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "electron/**/*"
-    ],
-    "mac": {
-      "category": "public.app-category.photography",
-      "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "universal"
-          ]
-        }
-      ],
-      "icon": "build/icon.icns",
-      "darkModeSupport": true
-    },
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "build/icon.ico"
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
-      "deleteAppDataOnUninstall": false,
-      "installerLanguages": [
-        "zh_CN",
-        "en_US"
-      ],
-      "language": "2052"
-    },
-    "dmg": {
-      "contents": [
-        {
-          "x": 130,
-          "y": 220
-        },
-        {
-          "x": 410,
-          "y": 220,
-          "type": "link",
-          "path": "/Applications"
-        }
-      ]
-    }
+    "vite": "^6.2.0"
   }
 }
