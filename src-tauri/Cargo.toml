@@ -1,6 +1,6 @@
 [package]
 name = "moke-vision-one"
-version = "3.7.5"
+version = "3.8.0"
 edition = "2021"
 description = "MOKE Vision One desktop runtime powered by Tauri 2"
 

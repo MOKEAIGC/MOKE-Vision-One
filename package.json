@@ -2,7 +2,7 @@
   "name": "moke-vision-one",
   "productName": "MOKE Vision One",
   "private": true,
-  "version": "3.7.5",
+  "version": "3.8.0",
   "description": "虚拟量子相机 — AI 图像生成桌面应用",
   "author": "MOKE",
   "type": "module",
