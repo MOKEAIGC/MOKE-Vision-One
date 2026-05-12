@@ -39,27 +39,34 @@ macOS	下载DMG → 拖进Applications Download DMG → Drag to Applications
 Windows	双击EXE → 选择安装路径 → 完成 Double-click EXE → Choose install path → Done
 小提示 / Tips：
 Mac首次打开可能会被系统拦截，右键点击App选择“打开”即可。Windows用户遇到SmartScreen告警，点击“更多信息”→“仍要运行”就OK啦~
+
 On Mac, if blocked, right-click the App and select "Open". Windows users click "More Info" → "Run Anyway" when SmartScreen appears.
 
 配置API：唯一需要动脑的一步 / Configuring API: The Only Brain-Intensive Step
 启动App后，点击右上角的⚙齿轮图标，进入API设置：
+
 Launch the App, click the ⚙ gear icon in the top-right corner, and enter API settings.
 
 去Google AI Studio获取你的Gemini API Key
+
 Go to Google AI Studio to get your Gemini API Key
 
 填入Key，其他保持默认
+
 Enter the Key, leave others as default
 
 点击“测试连接”看到绿色勾号就搞定！
+
 Click "Test Connection" and see a green checkmark — done!
 
 放心使用 / Privacy Guaranteed：
 你的Key会被系统级加密存储，不会泄露。
+
 Your Key is encrypted at the system level (macOS Keychain / Windows DPAPI) and will not leak.
 
 📷 主界面：像专业相机一样优雅 / Main Interface: As Elegant as a Professional Camera
 中央取景器 / Central Viewfinder： 就像相机的取景框，在这里输入你的创意提示词。
+
 Just like a camera's viewfinder — input your creative prompts here.
 
 底部Dock / Bottom Dock： 切换模式、按快门拍照。
@@ -74,6 +81,7 @@ T2I（文生图 / Text-to-Image）	纯文字变图片 / Transform pure text into
 I2I（图生图 / Image-to-Image）	参考图+文字生成新图 / Reference image + text generates new image
 🎯 相机参数：不只是噱头 / Camera Parameters: Not Just Gimmicks
 你以为这些参数只是摆设？不，它们能让你的AI摄影更有灵魂！
+
 You think these parameters are just for show? No, they give your AI photography more soul!
 
 参数 Parameter	范围 Range	效果 Effect
@@ -83,30 +91,37 @@ ISO	100–6400	暗光/颗粒感 / Low light/graininess
 画幅 Aspect Ratio	多种比例 / Multiple ratios	横屏/竖屏/方形 / Landscape/Portrait/Square
 温馨提示 / Friendly Reminder：
 这些参数会以文字形式注入到提示词中，影响生成风格。真正决定质量的是你的提示词和参考图噢~
+
 These parameters are injected as text into your prompt, influencing the generated style. The real quality depends on your prompt and reference image!
 
 🎬 高级工具：专业创作必备 / Advanced Tools: Professional Creativity Essentials
 导演甲板 / Director's Deck
 多镜头分镜创作工作台，适合短视频创作者、广告设计师。把一组图片排列成“镜头列表”，批量生成分镜稿，支持导出导入工程文件。
+
 Multi-shot storyboard creation workspace, perfect for short video creators and ad designers. Arrange images into a "shot list," batch-generate storyboards, with export/import support for project files.
 
 Seedance舞动提示词 / Seedance Dancing Prompts
 专为视频模型生成结构化的提示词，内置镜头运动、转场、人物动作、光线等词库，输出可一键复制到视频平台。
+
 Generates structured prompts specifically for video models, with built-in lexicons for camera movements, transitions, character actions, lighting, etc. Output can be copied to video platforms with one click.
 
 胶片系统 / Film System
 柯达、富士、哈苏等多种风格一键添加，自定义风格还可以跨会话复用。
+
 Instantly add Kodak, Fuji, Hasselblad, and many other film styles. Custom styles can be reused across sessions.
 
 AI对话窗口 / AI Chat Window
 与Gemini对话，AI回复中的prompt代码块可一键添加到主取景器。超级适合灵感枯竭时找找灵感！
+
 Chat with Gemini — AI response prompt code blocks can be added to the main viewfinder with one click. Perfect for when you're out of inspiration!
 
 💾 自动化与批量生成 / Automation & Batch Generation
 自动保存 / Auto-Save： 开启后每次生成自动保存PNG图片和提示词文本，再也不怕忘记保存！
+
 When enabled, automatically saves PNG images and prompt text after each generation — never worry about forgetting to save again!
 
 批量生成 / Batch Generation： 选择1/2/4张，串行执行防限流。某张失败不会中断整批，最后会告诉你失败详情。
+
 Select 1/2/4 images, executed serially to prevent rate limiting. A single failure won't interrupt the entire batch, and you'll be informed of failure details at the end.
 
 ⌨️ 快捷键一览（效率党必看）/ Shortcuts Overview (For Efficiency Enthusiasts)
@@ -140,36 +155,6 @@ Want to save permanently? Enable auto-save!
 MOKE Vision One不是传统意义上的“AI绘图软件”，它更像是一台有灵魂的虚拟量子相机。从界面设计到交互逻辑，都在营造真实的摄影体验。
 
 MOKE Vision One is not a traditional "AI drawing software" — it's more like a soulful virtual quantum camera. From interface design to interaction logic, everything creates an authentic photography experience.
-
-📊 虚拟参数规格 / Virtual Parameter Specifications
-参数项 Parameter	规格详情 Specifications	中文
-Model	MOKE Vision One	型号
-Sensor Type	35mm Full-frame Curved Organic Sensor (Curved-OPF)	传感器类型
-Effective Pixels	10.28 Billion Pixels (1028 MP)	有效像素
-Pixel Array	Non-Bayer, RGBW-Q (Quantum Dot Broad Spectrum Photosensitive Layer)	像素排列
-Lens System	Planar-M Active Lens System (Electrically Controlled Flat Metalens)	镜头系统
-Focal Length/Aperture	Equivalent 24-200mm Constant f/1.0 (Stepless Zoom)	焦距/光圈
-Focus System	LiDAR Spatial Modeling + Full-plane Phase Detection (100% Coverage)	对焦系统
-Shutter System	Pure Electronic Global Shutter (No Mechanical Parts)	快门系统
-Shutter Speed	30s to 1/500,000s (Supports Lightning Capture Mode)	快门速度
-ISO Sensitivity	ISO 10 - ISO 3,200,000 (Usable with Quantum Noise Reduction)	ISO 感光度
-Image Processor	Q-Core Neural Engine (Built-in 50-Qubit Quantum Co-processor)	图像处理器
-Continuous Shooting	240 fps @ 128MP RAW (Quantum Cache)	连拍速度
-Video Capability	16K 30fps / 8K 240fps / 4K 1000fps (12-bit ProRes RAW)	视频能力
-Image Stabilization	5-axis Sensor Shift + Quantum Predictive Frame Compensation (Equivalent 10 Stops)	防抖系统
-Storage	Built-in 4TB NVMe SSD + Cloud Quantum Entanglement Real-time Transfer	存储
-Body Material	Carbon Fiber-Ceramic Composite (For Quantum Chip Passive Cooling)	机身材质
-Dimensions/Weight	145mm x 75mm x 8.5mm / 320g	尺寸/重量
-📥 获取方式 / How to Get It
-最新版本 / Latest Version： MOKE Vision One v3.7.2
-最后更新 / Last Updated： 2026年5月3日 / May 3, 2026
-
-关注私聊回复量子相机获取！
-Follow and reply "Quantum Camera" to get the download link!
-
-快去创作属于你的第一张AI照片吧！🎉
-Go create your first AI photo now! 🎉
-
 
 ## 开发
 
