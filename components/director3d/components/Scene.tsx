@@ -12,9 +12,28 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 // 角色模型路径（public/models/xbot.glb → 运行时 /models/xbot.glb）
 const ACTOR_MODEL_URL = '/models/xbot.glb';
 
-// 场景比例约定：原始 GLB 单位极小，按需求统一放大 100 倍。
-// 脚底贴地 (局部 y=0)、水平居中。选中时材质自发光高亮。每个实例独立克隆骨骼与材质。
-const ACTOR_SCALE = 100; // 缩放 100 倍
+// 场景比例约定：1 世界单位 = 1 米。该 GLB 按厘米建模（原始高约 180 单位），
+// 因此统一归一化到 1.8 单位身高（180cm），脚底贴地 (局部 y=0)、水平居中。
+// 选中时材质自发光高亮。每个实例独立克隆骨骼与材质。
+const ACTOR_HEIGHT_M = 1.8; // 目标身高 180cm
+
+// 稳健地计算对象的世界包围盒：遍历每个 mesh 的 geometry boundingBox 并合并，
+// 避免 SkinnedMesh 在 bind-pose 下 Box3.setFromObject 退化为空盒。
+function computeRobustBounds(obj: THREE.Object3D): THREE.Box3 {
+  obj.updateWorldMatrix(true, true);
+  const box = new THREE.Box3();
+  obj.traverse((child: any) => {
+    if (child.isMesh && child.geometry) {
+      if (!child.geometry.boundingBox) child.geometry.computeBoundingBox();
+      if (child.geometry.boundingBox) {
+        const gbox = child.geometry.boundingBox.clone();
+        gbox.applyMatrix4(child.matrixWorld);
+        box.union(gbox);
+      }
+    }
+  });
+  return box;
+}
 
 function ActorModel({ selected }: { selected: boolean }) {
   const { scene } = useGLTF(ACTOR_MODEL_URL);
@@ -22,12 +41,14 @@ function ActorModel({ selected }: { selected: boolean }) {
   const model = useMemo(() => {
     const cloned = SkeletonUtils.clone(scene) as THREE.Object3D;
 
-    // 1. 固定放大 100 倍
-    cloned.scale.setScalar(ACTOR_SCALE);
+    // 1. 归一化到目标身高（180cm）
+    const box0 = computeRobustBounds(cloned);
+    const height = box0.max.y - box0.min.y;
+    const s = isFinite(height) && height > 0 ? ACTOR_HEIGHT_M / height : 1;
+    cloned.scale.setScalar(s);
 
-    // 2. 缩放后计算包围盒，脚底贴地并水平居中（若包围盒无效则跳过偏移）
-    cloned.updateWorldMatrix(true, true);
-    const box = new THREE.Box3().setFromObject(cloned);
+    // 2. 缩放后重新计算包围盒，脚底贴地并水平居中
+    const box = computeRobustBounds(cloned);
     if (isFinite(box.min.y) && isFinite(box.max.y)) {
       const center = new THREE.Vector3();
       box.getCenter(center);
