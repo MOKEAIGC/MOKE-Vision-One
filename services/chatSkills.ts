@@ -341,19 +341,42 @@ ARRI ALEXA 65 + Ultra Prime / Leica Summicron-C，高 ISO 保留噪点
 
 // ==================== 运行时技能注册中心 ====================
 
+const CUSTOM_SKILLS_STORAGE_KEY = 'moke_custom_chat_skills_v1';
+
 const skillsMap = new Map<string, ChatSkill>();
 BUILTIN_SKILLS.forEach(s => skillsMap.set(s.id, s));
 
-/** 注册自定义技能（或覆盖同 ID） */
+// 从 localStorage 加载自定义技能
+function loadCustomSkills() {
+  try {
+    const raw = localStorage.getItem(CUSTOM_SKILLS_STORAGE_KEY);
+    if (raw) {
+      const skills: ChatSkill[] = JSON.parse(raw);
+      skills.forEach(s => skillsMap.set(s.id, { ...s, builtin: false }));
+    }
+  } catch {}
+}
+loadCustomSkills();
+
+// 持久化自定义技能到 localStorage
+function saveCustomSkills() {
+  const custom = Array.from(skillsMap.values()).filter(s => !s.builtin);
+  localStorage.setItem(CUSTOM_SKILLS_STORAGE_KEY, JSON.stringify(custom));
+}
+
+/** 注册自定义技能（或覆盖同 ID），自动持久化 */
 export const registerSkill = (skill: ChatSkill): void => {
   skillsMap.set(skill.id, { ...skill, builtin: false });
+  saveCustomSkills();
 };
 
-/** 取消注册（内置技能不可删除） */
+/** 取消注册（内置技能不可删除），自动持久化 */
 export const unregisterSkill = (id: string): boolean => {
   const s = skillsMap.get(id);
   if (!s || s.builtin) return false;
-  return skillsMap.delete(id);
+  const result = skillsMap.delete(id);
+  saveCustomSkills();
+  return result;
 };
 
 /** 获取全部技能 */
@@ -361,6 +384,9 @@ export const getAllSkills = (): ChatSkill[] => Array.from(skillsMap.values());
 
 /** 按 ID 获取技能 */
 export const getSkill = (id: string): ChatSkill | undefined => skillsMap.get(id);
+
+/** 获取自定义（非内置）技能 */
+export const getCustomSkills = (): ChatSkill[] => Array.from(skillsMap.values()).filter(s => !s.builtin);
 
 /** 默认技能 ID */
 export const DEFAULT_SKILL_ID = 'default';

@@ -485,7 +485,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ onClose }) =
   // ---------------- Render ----------------
   return ReactDOM.createPortal(
     <div
-      className="fixed inset-0 z-[10050] flex items-center justify-center bg-black/70 backdrop-blur-md"
+      className="absolute inset-0 z-[10050] flex items-center justify-center bg-black/70 backdrop-blur-md"
       onClick={handleCloseWithAutoSave}
       style={{
         // 自适应内边距：小屏几乎贴边；大屏留白

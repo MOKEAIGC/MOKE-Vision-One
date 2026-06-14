@@ -79,3 +79,14 @@ _gen.py
 *.openapi.json
 migrated_prompt_history/
 .codebuddy/
+
+# Server generated files
+server/output/
+server/assets/input/
+server/data/canvases/
+server/data/conversations/
+server/data/history.json
+server/data/asset_library.json
+server/data/providers.json
+server/.env
+server/__pycache__/

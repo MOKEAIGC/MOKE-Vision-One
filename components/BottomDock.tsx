@@ -30,6 +30,10 @@ interface BottomDockProps {
   isDirectorActive?: boolean;
   /** Seedance 面板是否打开中 */
   isSeedanceActive?: boolean;
+  /** 打开无限画布 */
+  onShowCanvas: () => void;
+  /** 无限画布是否打开中 */
+  isCanvasActive?: boolean;
 }
 
 /**
@@ -50,11 +54,13 @@ export const BottomDock: React.FC<BottomDockProps> = ({
   onShowSeedance,
   isDirectorActive = false,
   isSeedanceActive = false,
+  onShowCanvas,
+  isCanvasActive = false,
 }) => {
   const { t } = useLanguage();
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 pointer-events-none">
+    <div className="absolute bottom-0 left-0 right-0 z-40 pointer-events-none">
       {/* 渐变遮罩 — 让底部控制区与取景器自然过渡 */}
       <div
         className={`h-32 bg-gradient-to-t ${
@@ -224,6 +230,23 @@ export const BottomDock: React.FC<BottomDockProps> = ({
                   </svg>
                 }
               />
+              {/* 无限画布 — 青色 */}
+              <DockButton
+                isDark={isDark}
+                onClick={onShowCanvas}
+                label={lang === 'CN' ? '画布' : 'CANVAS'}
+                active={isCanvasActive}
+                accentColor="cyan"
+                icon={
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="7" height="7" rx="1" strokeWidth={1.5} />
+                    <rect x="14" y="3" width="7" height="7" rx="1" strokeWidth={1.5} />
+                    <rect x="3" y="14" width="7" height="7" rx="1" strokeWidth={1.5} />
+                    <rect x="14" y="14" width="7" height="7" rx="1" strokeWidth={1.5} />
+                    <path d="M10 6.5h4M6.5 10v4M17.5 10v4M10 17.5h4" strokeWidth={1} opacity={0.5} />
+                  </svg>
+                }
+              />
             </div>
           </div>
         </div>
@@ -238,7 +261,7 @@ export const BottomDock: React.FC<BottomDockProps> = ({
  * - active 状态：彩色填充边框 + 发光环 + 右上角闪烁指示灯
  * - hover：边框点亮 + 图标微放大 + 背景微亮
  */
-type AccentColor = 'amber' | 'red' | 'violet';
+type AccentColor = 'amber' | 'red' | 'violet' | 'cyan';
 
 const ACCENT_PALETTE: Record<AccentColor, {
   /** 非激活态图标色 */
@@ -282,6 +305,15 @@ const ACCENT_PALETTE: Record<AccentColor, {
     activeIcon: 'text-violet-300',
     glow: 'shadow-[0_0_16px_rgba(139,92,246,0.5)]',
     dot: 'bg-violet-400 shadow-[0_0_6px_rgba(139,92,246,0.9)]',
+  },
+  cyan: {
+    icon: 'text-cyan-400/80',
+    hoverBorder: 'group-hover:border-cyan-400/60',
+    activeBorder: 'border-cyan-400',
+    activeBg: 'bg-gradient-to-br from-cyan-500/20 to-teal-600/10',
+    activeIcon: 'text-cyan-300',
+    glow: 'shadow-[0_0_16px_rgba(6,182,212,0.5)]',
+    dot: 'bg-cyan-400 shadow-[0_0_6px_rgba(6,182,212,0.9)]',
   },
 };
 

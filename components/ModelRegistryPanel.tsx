@@ -479,7 +479,7 @@ export const ModelRegistryPanel: React.FC<ModelRegistryPanelProps> = ({ onClose,
   };
 
   return (
-    <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/70 backdrop-blur-md" onClick={onClose}>
+    <div className="absolute inset-0 z-[9998] flex items-center justify-center bg-black/70 backdrop-blur-md" onClick={onClose}>
       <div
         className={`relative w-[680px] max-w-[95vw] max-h-[90vh] overflow-y-auto ${panelBg} border ${borderColor} rounded-sm shadow-2xl`}
         onClick={(e) => e.stopPropagation()}
