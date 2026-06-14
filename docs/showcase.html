@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MOKE Vision One — 虚拟量子相机 · AI 创作终端</title>
+<meta name="description" content="MOKE Vision One v4.0.0 — 一台有灵魂的虚拟量子相机。集成无限画布、3D 导演台、AI 技能系统与多平台 AI 图像 / 视频生成的桌面创作终端。" />
+<style>
+  :root{
+    --bg:#07080c;
+    --bg-soft:#0d1016;
+    --panel:#11141d;
+    --panel-2:#161b27;
+    --line:rgba(255,255,255,.08);
+    --line-strong:rgba(255,255,255,.16);
+    --txt:#eef1f6;
+    --txt-dim:#9aa4b6;
+    --txt-faint:#5f6a7e;
+    --accent:#ff5a3c;       /* 工业橙 — 快门红 */
+    --accent-2:#39e0c6;     /* 量子青 */
+    --accent-3:#7c6cff;     /* 数据紫 */
+    --glow:0 0 0 1px rgba(255,90,60,.4), 0 0 40px -6px rgba(255,90,60,.5);
+    --radius:18px;
+    --maxw:1180px;
+    --mono:"SFMono-Regular",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    font-family:var(--sans);
+    background:var(--bg);
+    color:var(--txt);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* 背景网格 + 噪点 */
+  body::before{
+    content:"";position:fixed;inset:0;z-index:-2;
+    background:
+      radial-gradient(900px 500px at 75% -5%, rgba(124,108,255,.18), transparent 60%),
+      radial-gradient(800px 600px at 0% 100%, rgba(57,224,198,.12), transparent 55%),
+      var(--bg);
+  }
+  body::after{
+    content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+    background-image:
+      linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
+    background-size:48px 48px;
+    mask-image:radial-gradient(ellipse 120% 80% at 50% 0%,#000 35%,transparent 80%);
+  }
+  a{color:inherit;text-decoration:none;}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px;}
+
+  /* ---------- NAV ---------- */
+  nav{
+    position:sticky;top:0;z-index:50;
+    backdrop-filter:blur(14px);
+    background:rgba(7,8,12,.7);
+    border-bottom:1px solid var(--line);
+  }
+  nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px;}
+  .brand{display:flex;align-items:center;gap:11px;font-weight:700;letter-spacing:.3px;}
+  .brand .lens{
+    width:26px;height:26px;border-radius:50%;
+    background:
+      radial-gradient(circle at 35% 35%,#fff 0 8%,transparent 9%),
+      conic-gradient(from 220deg,var(--accent),var(--accent-3),var(--accent-2),var(--accent));
+    box-shadow:0 0 18px -3px var(--accent);
+    position:relative;
+  }
+  .brand .lens::after{content:"";position:absolute;inset:6px;border-radius:50%;background:#07080c;}
+  .nav-links{display:flex;gap:28px;font-size:14px;color:var(--txt-dim);}
+  .nav-links a:hover{color:var(--txt);}
+  .nav-cta{
+    font-size:13px;font-weight:600;padding:9px 16px;border-radius:999px;
+    border:1px solid var(--line-strong);color:var(--txt);
+    transition:.2s;
+  }
+  .nav-cta:hover{border-color:var(--accent);box-shadow:var(--glow);}
+  @media(max-width:820px){.nav-links{display:none;}}
+
+  /* ---------- HERO ---------- */
+  header.hero{padding:96px 0 72px;position:relative;}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:9px;
+    font-family:var(--mono);font-size:12px;letter-spacing:2px;text-transform:uppercase;
+    color:var(--accent-2);padding:7px 14px;border:1px solid var(--line);border-radius:999px;
+    background:var(--panel);margin-bottom:26px;
+  }
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--accent-2);box-shadow:0 0 10px var(--accent-2);animation:pulse 2s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  h1.title{
+    font-size:clamp(40px,7vw,82px);line-height:1.02;font-weight:800;letter-spacing:-1.5px;
+    margin-bottom:24px;
+  }
+  h1.title .grad{
+    background:linear-gradient(110deg,var(--accent) 0%,var(--accent-3) 45%,var(--accent-2) 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .lede{font-size:clamp(17px,2.2vw,21px);color:var(--txt-dim);max-width:680px;margin-bottom:14px;}
+  .philosophy{font-family:var(--mono);font-size:13px;color:var(--txt-faint);letter-spacing:1px;margin-bottom:38px;}
+  .hero-cta{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:54px;}
+  .btn{
+    display:inline-flex;align-items:center;gap:9px;font-weight:600;font-size:15px;
+    padding:14px 26px;border-radius:12px;transition:.22s;cursor:pointer;border:1px solid transparent;
+  }
+  .btn-primary{background:var(--accent);color:#0a0a0a;box-shadow:var(--glow);}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 0 0 1px rgba(255,90,60,.5),0 14px 40px -8px rgba(255,90,60,.6);}
+  .btn-ghost{border-color:var(--line-strong);color:var(--txt);}
+  .btn-ghost:hover{border-color:var(--accent-2);background:var(--panel);}
+  .hero-stats{display:flex;gap:46px;flex-wrap:wrap;}
+  .stat .num{font-size:30px;font-weight:800;letter-spacing:-.5px;}
+  .stat .num span{color:var(--accent);}
+  .stat .lbl{font-size:13px;color:var(--txt-faint);font-family:var(--mono);}
+
+  /* mock window */
+  .hero-mock{margin-top:64px;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--panel);box-shadow:0 40px 120px -40px rgba(0,0,0,.9);}
+  .mock-bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid var(--line);background:var(--panel-2);}
+  .mock-bar i{width:11px;height:11px;border-radius:50%;background:#3a4150;display:inline-block;}
+  .mock-bar i:nth-child(1){background:#ff5f57;}
+  .mock-bar i:nth-child(2){background:#febc2e;}
+  .mock-bar i:nth-child(3){background:#28c840;}
+  .mock-bar .addr{margin-left:14px;font-family:var(--mono);font-size:12px;color:var(--txt-faint);}
+  .mock-body{
+    aspect-ratio:16/8.4;display:flex;align-items:center;justify-content:center;position:relative;
+    background:
+      radial-gradient(60% 80% at 50% 40%,rgba(124,108,255,.16),transparent 70%),
+      repeating-linear-gradient(0deg,rgba(255,255,255,.03) 0 1px,transparent 1px 34px),
+      repeating-linear-gradient(90deg,rgba(255,255,255,.03) 0 1px,transparent 1px 34px),
+      #0a0c12;
+  }
+  .viewfinder-frame{position:absolute;inset:8% 10%;border:1px solid rgba(57,224,198,.35);border-radius:8px;}
+  .viewfinder-frame::before,.viewfinder-frame::after{content:"";position:absolute;width:22px;height:22px;border:2px solid var(--accent-2);}
+  .viewfinder-frame::before{top:-2px;left:-2px;border-right:0;border-bottom:0;}
+  .viewfinder-frame::after{bottom:-2px;right:-2px;border-left:0;border-top:0;}
+  .vf-center{text-align:center;z-index:2;}
+  .vf-center .shutter{
+    width:88px;height:88px;border-radius:50%;margin:0 auto 18px;
+    border:3px solid var(--accent);position:relative;
+    background:radial-gradient(circle at 50% 50%,rgba(255,90,60,.25),transparent 70%);
+    box-shadow:0 0 50px -10px var(--accent);
+  }
+  .vf-center .shutter::after{content:"";position:absolute;inset:12px;border-radius:50%;border:2px solid rgba(255,90,60,.4);}
+  .vf-center p{font-family:var(--mono);color:var(--txt-dim);font-size:13px;letter-spacing:1px;}
+  .vf-hud{position:absolute;top:14px;left:18px;font-family:var(--mono);font-size:11px;color:var(--accent-2);letter-spacing:1px;}
+  .vf-hud2{position:absolute;bottom:14px;right:18px;font-family:var(--mono);font-size:11px;color:var(--txt-faint);letter-spacing:1px;}
+
+  /* ---------- SECTION ---------- */
+  section{padding:84px 0;position:relative;}
+  .sec-head{max-width:680px;margin-bottom:54px;}
+  .sec-tag{font-family:var(--mono);font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:16px;}
+  .sec-title{font-size:clamp(28px,4.4vw,46px);font-weight:800;letter-spacing:-.8px;line-height:1.1;margin-bottom:18px;}
+  .sec-sub{font-size:17px;color:var(--txt-dim);}
+
+  /* feature grid */
+  .grid{display:grid;gap:20px;}
+  .grid-3{grid-template-columns:repeat(3,1fr);}
+  .grid-2{grid-template-columns:repeat(2,1fr);}
+  @media(max-width:900px){.grid-3{grid-template-columns:1fr;}.grid-2{grid-template-columns:1fr;}}
+  .card{
+    background:linear-gradient(180deg,var(--panel),var(--bg-soft));
+    border:1px solid var(--line);border-radius:var(--radius);padding:30px 28px;
+    transition:.25s;position:relative;overflow:hidden;
+  }
+  .card::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--c,var(--accent)),transparent);opacity:.6;}
+  .card:hover{transform:translateY(-4px);border-color:var(--line-strong);box-shadow:0 24px 60px -30px rgba(0,0,0,.9);}
+  .card .ico{
+    width:50px;height:50px;border-radius:13px;display:flex;align-items:center;justify-content:center;
+    background:color-mix(in srgb,var(--c,var(--accent)) 14%,transparent);
+    border:1px solid color-mix(in srgb,var(--c,var(--accent)) 34%,transparent);
+    margin-bottom:20px;
+  }
+  .card .ico svg{width:25px;height:25px;stroke:var(--c,var(--accent));}
+  .card h3{font-size:19px;font-weight:700;margin-bottom:10px;}
+  .card p{font-size:14.5px;color:var(--txt-dim);}
+  .card .tag-row{margin-top:16px;display:flex;flex-wrap:wrap;gap:7px;}
+  .pill{font-family:var(--mono);font-size:11px;color:var(--txt-dim);padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--bg);}
+
+  /* big module rows */
+  .module{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;margin-bottom:84px;}
+  .module:last-child{margin-bottom:0;}
+  .module.rev .m-visual{order:2;}
+  @media(max-width:900px){.module{grid-template-columns:1fr;gap:28px;}.module.rev .m-visual{order:0;}}
+  .m-kicker{font-family:var(--mono);font-size:12px;letter-spacing:2px;color:var(--accent-2);margin-bottom:14px;text-transform:uppercase;}
+  .m-title{font-size:clamp(24px,3.4vw,34px);font-weight:800;letter-spacing:-.6px;margin-bottom:16px;}
+  .m-desc{color:var(--txt-dim);font-size:16px;margin-bottom:22px;}
+  .m-list{list-style:none;display:flex;flex-direction:column;gap:12px;}
+  .m-list li{display:flex;gap:12px;font-size:15px;color:var(--txt);}
+  .m-list li svg{flex:0 0 auto;width:20px;height:20px;stroke:var(--accent-2);margin-top:2px;}
+  /* visual placeholder (screenshot slot) */
+  .shot{
+    border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+    background:var(--panel);box-shadow:0 30px 80px -40px rgba(0,0,0,.9);
+  }
+  .shot-bar{display:flex;gap:7px;padding:11px 14px;border-bottom:1px solid var(--line);background:var(--panel-2);align-items:center;}
+  .shot-bar i{width:9px;height:9px;border-radius:50%;background:#3a4150;}
+  .shot-bar .t{margin-left:10px;font-family:var(--mono);font-size:11px;color:var(--txt-faint);}
+  .shot-canvas{
+    aspect-ratio:16/10;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;
+    color:var(--txt-faint);font-family:var(--mono);font-size:12px;letter-spacing:1px;position:relative;
+    background:
+      radial-gradient(70% 90% at 50% 30%,color-mix(in srgb,var(--mc,var(--accent)) 14%,transparent),transparent 70%),
+      repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,transparent 1px 30px),
+      repeating-linear-gradient(90deg,rgba(255,255,255,.025) 0 1px,transparent 1px 30px),
+      #0a0c12;
+  }
+  .shot-canvas .ph-ico{width:54px;height:54px;stroke:var(--mc,var(--accent));opacity:.85;}
+  .shot-canvas .ph-tip{opacity:.6;}
+
+  /* params table */
+  .table-wrap{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--panel);}
+  table{width:100%;border-collapse:collapse;font-size:15px;}
+  th,td{text-align:left;padding:16px 22px;border-bottom:1px solid var(--line);}
+  th{font-family:var(--mono);font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--txt-faint);background:var(--panel-2);}
+  tr:last-child td{border-bottom:0;}
+  td:first-child{font-weight:600;}
+  td .range{font-family:var(--mono);color:var(--accent-2);font-size:13px;}
+
+  /* platform logos row */
+  .plat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;}
+  @media(max-width:900px){.plat-grid{grid-template-columns:repeat(3,1fr);}}
+  @media(max-width:520px){.plat-grid{grid-template-columns:repeat(2,1fr);}}
+  .plat{
+    border:1px solid var(--line);border-radius:14px;padding:22px 14px;text-align:center;
+    background:var(--panel);font-weight:600;font-size:14px;transition:.2s;
+  }
+  .plat:hover{border-color:var(--accent);color:var(--accent);}
+  .plat small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--txt-faint);margin-top:5px;font-weight:400;}
+
+  /* shortcuts */
+  .keys{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  @media(max-width:780px){.keys{grid-template-columns:1fr;}}
+  .key-item{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid var(--line);border-radius:12px;padding:16px 18px;background:var(--panel);}
+  .key-item span{color:var(--txt-dim);font-size:14px;}
+  kbd{font-family:var(--mono);font-size:12px;background:var(--panel-2);border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:7px;padding:5px 9px;color:var(--txt);white-space:nowrap;}
+
+  /* CTA band */
+  .cta-band{
+    border:1px solid var(--line);border-radius:24px;padding:60px 40px;text-align:center;position:relative;overflow:hidden;
+    background:linear-gradient(180deg,var(--panel),var(--bg-soft));
+  }
+  .cta-band::before{content:"";position:absolute;inset:0;background:radial-gradient(60% 100% at 50% 0%,rgba(255,90,60,.18),transparent 60%);}
+  .cta-band h2{font-size:clamp(28px,4.6vw,44px);font-weight:800;letter-spacing:-.8px;margin-bottom:14px;position:relative;}
+  .cta-band p{color:var(--txt-dim);max-width:540px;margin:0 auto 30px;position:relative;}
+  .cta-band .hero-cta{justify-content:center;}
+
+  /* footer */
+  footer{border-top:1px solid var(--line);padding:48px 0 60px;margin-top:30px;}
+  .foot{display:flex;justify-content:space-between;gap:30px;flex-wrap:wrap;}
+  .foot .brand{margin-bottom:14px;}
+  .foot p{color:var(--txt-faint);font-size:13px;max-width:300px;}
+  .foot-links{display:flex;gap:50px;flex-wrap:wrap;}
+  .foot-col h4{font-size:13px;font-family:var(--mono);letter-spacing:1px;color:var(--txt-faint);margin-bottom:14px;text-transform:uppercase;}
+  .foot-col a{display:block;color:var(--txt-dim);font-size:14px;margin-bottom:10px;transition:.15s;}
+  .foot-col a:hover{color:var(--accent);}
+  .copyright{margin-top:40px;padding-top:24px;border-top:1px solid var(--line);font-size:12.5px;color:var(--txt-faint);font-family:var(--mono);}
+
+  .reveal{opacity:0;transform:translateY(24px);transition:.7s cubic-bezier(.2,.7,.2,1);}
+  .reveal.in{opacity:1;transform:none;}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#top"><span class="lens"></span>MOKE Vision One</a>
+    <div class="nav-links">
+      <a href="#modules">核心模块</a>
+      <a href="#camera">相机参数</a>
+      <a href="#platforms">平台支持</a>
+      <a href="#shortcuts">快捷键</a>
+      <a href="#start">开始使用</a>
+    </div>
+    <a class="nav-cta" href="https://github.com/MOKEAIGC/MOKE-Vision-One/releases/tag/v4.0.0" target="_blank">下载 v4.0.0 ↗</a>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <span class="eyebrow"><span class="dot"></span>v4.0.0 · 极限物理 · 计算摄影终端</span>
+    <h1 class="title">不是绘图软件<br>是一台 <span class="grad">虚拟量子相机</span></h1>
+    <p class="lede">MOKE Vision One 是一款有灵魂的桌面 AI 创作终端。从取景器到快门，从无限画布到 3D 导演台，让你像操作专业相机一样，把创意变成影像。</p>
+    <p class="philosophy">// 设计理念：光即数据，无形之像 — "Light is Data, The Formless Image"</p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="https://github.com/MOKEAIGC/MOKE-Vision-One/releases/tag/v4.0.0" target="_blank">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+        下载桌面版
+      </a>
+      <a class="btn btn-ghost" href="#modules">探索核心功能</a>
+    </div>
+    <div class="hero-stats">
+      <div class="stat"><div class="num"><span>6</span>+</div><div class="lbl">AI 生成平台</div></div>
+      <div class="stat"><div class="num"><span>3</span> 大</div><div class="lbl">创作工作台</div></div>
+      <div class="stat"><div class="num"><span>2</span> 端</div><div class="lbl">macOS / Windows</div></div>
+      <div class="stat"><div class="num">本地<span>·</span>加密</div><div class="lbl">密钥系统级保护</div></div>
+    </div>
+
+    <div class="hero-mock reveal">
+      <div class="mock-bar"><i></i><i></i><i></i><span class="addr">moke-vision-one://viewfinder</span></div>
+      <div class="mock-body">
+        <span class="vf-hud">● REC · T2I MODE · 50mm f/1.8 ISO400</span>
+        <div class="viewfinder-frame"></div>
+        <div class="vf-center">
+          <div class="shutter"></div>
+          <p>PRESS ⏎ TO CAPTURE</p>
+        </div>
+        <span class="vf-hud2">QUANTUM SENSOR · 16:9 · GEMINI</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- 核心特性卡片 -->
+<section id="features">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-tag">// Capabilities</div>
+      <h2 class="sec-title">为创作者打造的完整工具链</h2>
+      <p class="sec-sub">从单张拍摄到节点式批量工作流，从二维生成到三维运镜，一个应用覆盖创意全流程。</p>
+    </div>
+    <div class="grid grid-3">
+      <div class="card reveal" style="--c:#ff5a3c">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M3 8a2 2 0 012-2h2l1.5-2h7L17 6h2a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/><circle cx="12" cy="12.5" r="3.5"/></svg></div>
+        <h3>虚拟量子相机</h3>
+        <p>中央取景器 + 底部快门 Dock，支持文生图 T2I 与图生图 I2I。像真实相机一样按下快门，生成属于你的影像。</p>
+        <div class="tag-row"><span class="pill">T2I</span><span class="pill">I2I</span><span class="pill">取景器</span></div>
+      </div>
+      <div class="card reveal" style="--c:#39e0c6">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+        <h3>无限画布</h3>
+        <p>节点式可视化创作工作流。拖拽连线编排生成器、LLM、循环等节点，构建可复用的自动化流水线。</p>
+        <div class="tag-row"><span class="pill">节点流</span><span class="pill">生成器</span><span class="pill">时间线</span></div>
+      </div>
+      <div class="card reveal" style="--c:#7c6cff">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></div>
+        <h3>3D 导演台</h3>
+        <p>三维场景中编排分镜与运镜，调度角色走位、控制相机轨迹，一键导出 / 截图，把镜头语言带进 AI 创作。</p>
+        <div class="tag-row"><span class="pill">运镜</span><span class="pill">分镜</span><span class="pill">3D 角色</span></div>
+      </div>
+      <div class="card reveal" style="--c:#ffb23c">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M9 3v4M15 3v4M12 7v3M7 10h10l-1 8a3 3 0 01-3 3h-2a3 3 0 01-3-3l-1-8z"/></svg></div>
+        <h3>AI 技能系统</h3>
+        <p>对话窗口可动态加载技能模块，让 AI 助手具备专项能力，回复中的提示词一键注入取景器。</p>
+        <div class="tag-row"><span class="pill">SkillLoader</span><span class="pill">对话集成</span></div>
+      </div>
+      <div class="card reveal" style="--c:#ff5a8c">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M7 5v4M11 5v4M15 5v4M19 5v4"/></svg></div>
+        <h3>胶片系统</h3>
+        <p>柯达、富士、哈苏等胶片风格一键添加，自定义风格可跨会话复用，为画面注入真实质感。</p>
+        <div class="tag-row"><span class="pill">Kodak</span><span class="pill">Fuji</span><span class="pill">Hasselblad</span></div>
+      </div>
+      <div class="card reveal" style="--c:#4cc9ff">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div>
+        <h3>视频生成 & Seedance</h3>
+        <p>支持 Veo3 / Sora / 通义万相 / 豆包 Seedance 视频模型，内置结构化舞动提示词词库，输出一键复制。</p>
+        <div class="tag-row"><span class="pill">Veo3</span><span class="pill">Sora</span><span class="pill">Seedance</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 三大模块详解 -->
+<section id="modules" style="background:linear-gradient(180deg,transparent,rgba(124,108,255,.04),transparent);">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-tag">// Workbenches</div>
+      <h2 class="sec-title">三大创作工作台</h2>
+      <p class="sec-sub">v4.0.0 全新引入的核心创作模块，覆盖从节点编排到三维运镜的专业创作场景。</p>
+    </div>
+
+    <div class="module reveal">
+      <div class="m-text">
+        <div class="m-kicker">// Infinite Canvas</div>
+        <h3 class="m-title">无限画布 · 节点式创作流</h3>
+        <p class="m-desc">把每个生成步骤抽象成节点，自由拖拽连线，构建可视化的创作流水线。支持画布持久化、回收站恢复与实时协作。</p>
+        <ul class="m-list">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>多种节点类型：生成器 / 图像 / 视频 / LLM / 提示词 / 循环 / 输出 / 智能 Composer</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>缩略图导航 Minimap、连线层、画布工具栏与时间线管理</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>服务端持久化存储，支持回收站与一键恢复</li>
+        </ul>
+      </div>
+      <div class="m-visual">
+        <div class="shot" style="--mc:#39e0c6">
+          <div class="shot-bar"><i></i><i></i><i></i><span class="t">infinite-canvas.tsx</span></div>
+          <div class="shot-canvas">
+            <svg class="ph-ico" viewBox="0 0 24 24" fill="none" stroke-width="1.4"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="13" width="7" height="7" rx="1.5"/><path d="M10 7.5h2.5a1.5 1.5 0 011.5 1.5v7.5"/></svg>
+            <span>[ 截图位 · 无限画布工作区 ]</span>
+            <span class="ph-tip">建议替换为节点连线编排界面截图</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="module rev reveal">
+      <div class="m-text">
+        <div class="m-kicker">// Director 3D</div>
+        <h3 class="m-title">3D 导演台 · 三维分镜运镜</h3>
+        <p class="m-desc">在三维场景中放置角色、规划走位、控制相机轨迹，用真实的镜头语言指导 AI 生成，输出分镜稿与运镜参考。</p>
+        <ul class="m-list">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>场景编辑、调度板、视口控制与坐标 / 相机辅助叠层</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>内置 3D 角色模型，按场景真实比例归一化（180cm）、脚底贴地</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>场景导出、截图与主程序捕获桥接</li>
+        </ul>
+      </div>
+      <div class="m-visual">
+        <div class="shot" style="--mc:#7c6cff">
+          <div class="shot-bar"><i></i><i></i><i></i><span class="t">director3d/Scene.tsx</span></div>
+          <div class="shot-canvas">
+            <svg class="ph-ico" viewBox="0 0 24 24" fill="none" stroke-width="1.4"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>
+            <span>[ 截图位 · 3D 导演台视口 ]</span>
+            <span class="ph-tip">建议替换为三维场景 + 相机轨迹界面截图</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="module reveal">
+      <div class="m-text">
+        <div class="m-kicker">// Director Deck & Skills</div>
+        <h3 class="m-title">导演甲板 + AI 技能</h3>
+        <p class="m-desc">导演甲板把图片排列成"镜头列表"批量生成分镜稿，支持工程文件导入导出；AI 技能系统让对话助手具备可加载的专项能力。</p>
+        <ul class="m-list">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>多镜头分镜工作台，批量生成、工程文件存档</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>AI 对话窗口集成技能栏，回复 Prompt 一键注入取景器</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>卫星 / 地球视图，为创作提供真实地理参考</li>
+        </ul>
+      </div>
+      <div class="m-visual">
+        <div class="shot" style="--mc:#ff5a3c">
+          <div class="shot-bar"><i></i><i></i><i></i><span class="t">director-deck.tsx</span></div>
+          <div class="shot-canvas">
+            <svg class="ph-ico" viewBox="0 0 24 24" fill="none" stroke-width="1.4"><rect x="3" y="5" width="5" height="14" rx="1"/><rect x="9.5" y="5" width="5" height="14" rx="1"/><rect x="16" y="5" width="5" height="14" rx="1"/></svg>
+            <span>[ 截图位 · 导演甲板分镜列表 ]</span>
+            <span class="ph-tip">建议替换为镜头列表 / 对话技能栏截图</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 相机参数 -->
+<section id="camera">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-tag">// Camera Controls</div>
+      <h2 class="sec-title">相机参数 · 不只是噱头</h2>
+      <p class="sec-sub">这些参数会以文字形式注入提示词，影响画面的氛围与风格 —— 让你的 AI 摄影真正"有灵魂"。</p>
+    </div>
+    <div class="table-wrap reveal">
+      <table>
+        <thead><tr><th>参数</th><th>范围</th><th>效果</th></tr></thead>
+        <tbody>
+          <tr><td>焦段 Focal Length</td><td><span class="range">24mm – 200mm</span></td><td>广角张力或长焦压缩氛围</td></tr>
+          <tr><td>光圈 Aperture</td><td><span class="range">f/1.0 – f/16</span></td><td>背景虚化或全画面清晰</td></tr>
+          <tr><td>ISO 感光度</td><td><span class="range">100 – 6400</span></td><td>暗光表现与胶片颗粒感</td></tr>
+          <tr><td>画幅 Aspect Ratio</td><td><span class="range">多种比例</span></td><td>横屏 / 竖屏 / 方形构图</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 平台支持 -->
+<section id="platforms" style="background:linear-gradient(180deg,transparent,rgba(57,224,198,.04),transparent);">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-tag">// Integrations</div>
+      <h2 class="sec-title">多平台 AI 引擎</h2>
+      <p class="sec-sub">一处配置，自由切换。图像与视频生成横跨主流平台，按需调用。</p>
+    </div>
+    <div class="plat-grid reveal">
+      <div class="plat">Gemini<small>Google AI</small></div>
+      <div class="plat">OpenAI<small>DALL·E / GPT</small></div>
+      <div class="plat">APIMart<small>中转聚合</small></div>
+      <div class="plat">ModelScope<small>魔搭 · 免费</small></div>
+      <div class="plat">火山引擎<small>豆包 Seedance</small></div>
+    </div>
+    <div class="grid grid-2" style="margin-top:20px;">
+      <div class="card reveal" style="--c:#ffb23c">
+        <h3>免费生图</h3>
+        <p>集成阿里魔搭 ModelScope 平台免费模型（Z-Image-Turbo 等），零成本快速出图。</p>
+      </div>
+      <div class="card reveal" style="--c:#7c6cff">
+        <h3>自动化 & 批量</h3>
+        <p>开启自动保存自动落盘 PNG + 提示词文本；批量 1/2/4 张串行生成防限流，单张失败不中断整批。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 快捷键 -->
+<section id="shortcuts">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-tag">// Keyboard</div>
+      <h2 class="sec-title">效率快捷键</h2>
+      <p class="sec-sub">像专业摄影师一样，双手不离键盘完成创作。</p>
+    </div>
+    <div class="keys reveal">
+      <div class="key-item"><span>拍照 / 生成</span><kbd>Enter</kbd></div>
+      <div class="key-item"><span>提示词换行</span><kbd>Shift + Enter</kbd></div>
+      <div class="key-item"><span>关闭浮层</span><kbd>Esc</kbd></div>
+      <div class="key-item"><span>清空提示词</span><kbd>Ctrl / ⌘ + K</kbd></div>
+      <div class="key-item"><span>字号放大 / 缩小</span><kbd>Ctrl / ⌘ + +/−</kbd></div>
+      <div class="key-item"><span>唤出参考图</span><kbd>@</kbd></div>
+    </div>
+  </div>
+</section>
+
+<!-- 开始使用 -->
+<section id="start">
+  <div class="wrap">
+    <div class="cta-band reveal">
+      <h2>5 分钟，开始你的第一次量子拍摄</h2>
+      <p>下载安装 → 配置 API 密钥 → 在取景器输入创意 → 按下快门。就这么简单。</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="https://github.com/MOKEAIGC/MOKE-Vision-One/releases/tag/v4.0.0" target="_blank">下载 v4.0.0</a>
+        <a class="btn btn-ghost" href="https://github.com/MOKEAIGC/MOKE-Vision-One" target="_blank">查看源码 ↗</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div>
+        <a class="brand" href="#top"><span class="lens"></span>MOKE Vision One</a>
+        <p>一台有灵魂的虚拟量子相机。光即数据，无形之像。</p>
+      </div>
+      <div class="foot-links">
+        <div class="foot-col">
+          <h4>产品</h4>
+          <a href="#modules">核心模块</a>
+          <a href="#camera">相机参数</a>
+          <a href="#platforms">平台支持</a>
+          <a href="https://github.com/MOKEAIGC/MOKE-Vision-One/releases/tag/v4.0.0" target="_blank">下载发布版</a>
+        </div>
+        <div class="foot-col">
+          <h4>资源</h4>
+          <a href="https://github.com/MOKEAIGC/MOKE-Vision-One" target="_blank">GitHub 仓库</a>
+          <a href="USER_MANUAL.md">用户手册</a>
+          <a href="https://github.com/MOKEAIGC/MOKE-Vision-One/blob/master/CHANGELOG.md" target="_blank">更新日志</a>
+        </div>
+        <div class="foot-col">
+          <h4>关注</h4>
+          <a href="https://www.xiaohongshu.com/user/profile/599e5be55e87e741c05a6bff" target="_blank">小红书</a>
+          <a href="https://mp.weixin.qq.com/s/YZZt-BUuOm-npJsGd7nlJQ" target="_blank">微信公众号</a>
+          <a href="mailto:yu8231593@gmail.com">邮箱联系</a>
+        </div>
+      </div>
+    </div>
+    <div class="copyright">© 2026 MOKE · MOKE Vision One v4.0.0 · Built with React + Vite + Tauri 2</div>
+  </div>
+</footer>
+
+<script>
+  // 滚动渐显
+  const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}})},{threshold:.12});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>
