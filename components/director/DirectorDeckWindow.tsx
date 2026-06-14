@@ -310,7 +310,7 @@ export const DirectorDeckWindow: React.FC<DirectorDeckWindowProps> = ({ onBack }
   const [leftTab, setLeftTab] = useState<'create' | 'settings' | 'cast'>('create');
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-moke-black text-gray-200 font-mono transition-colors duration-500">
+    <div className="flex flex-col h-full w-full overflow-hidden bg-moke-black text-gray-200 font-mono transition-colors duration-500">
       
       {/* 顶部导航栏 */}
       <header className="h-14 border-b border-gray-800 bg-moke-black/90 backdrop-blur-md flex items-center justify-between px-6 shrink-0 z-30">

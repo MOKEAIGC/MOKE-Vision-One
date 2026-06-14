@@ -72,9 +72,9 @@ export const SideRail: React.FC<SideRailProps> = ({
 
   return (
     <>
-      {/* 左侧图标列 — fixed 贴左 */}
+      {/* 左侧图标列 — absolute 贴左 */}
       <div
-        className={`fixed left-0 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2 p-2 rounded-r-2xl ${
+        className={`absolute left-0 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2 p-2 rounded-r-2xl ${
           isDark ? 'bg-black/60' : 'bg-white/70'
         } backdrop-blur-xl border-r border-y ${isDark ? 'border-white/5' : 'border-black/5'}`}
       >
@@ -152,7 +152,7 @@ export const SideRail: React.FC<SideRailProps> = ({
       {/* 抽屉式面板 — 根据 activeTab 显示 */}
       {activeTab !== null && (
         <div
-          className={`fixed left-16 top-1/2 -translate-y-1/2 z-40 rounded-2xl overflow-hidden shadow-2xl ${
+          className={`absolute left-16 top-1/2 -translate-y-1/2 z-40 rounded-2xl overflow-hidden shadow-2xl ${
             isDark ? 'bg-[#0A0A0A]/95 border-white/5' : 'bg-white/95 border-black/5'
           } backdrop-blur-2xl border animate-in fade-in slide-in-from-left-4 duration-200`}
           style={{

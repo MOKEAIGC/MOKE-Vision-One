@@ -20,6 +20,7 @@ import { DirectorDeckWindow } from './components/director/DirectorDeckWindow';
 import { SatelliteLinkWindow } from './components/satellite/SatelliteLinkWindow';
 import { ModelRegistryPanel } from './components/ModelRegistryPanel';
 import { SeedancePromptWindow } from './components/seedance/SeedancePromptWindow';
+import { InfiniteCanvasWindow } from './components/canvas/InfiniteCanvasWindow';
 import { GlobalAssetProvider } from './contexts/GlobalAssetContext';
 import { AutoSavePanel } from './components/AutoSavePanel';
 import { AutoSaveSettings, loadAutoSaveSettings, autoSaveImage, autoSaveText } from './services/autoSaveService';
@@ -39,6 +40,7 @@ import { useIntroExitTransition } from './components/IntroExitTransition';
 // 全局字体大小调节 —— 以 html 根字号为锚点，配合 Tailwind rem 体系实现全站等比缩放
 import { FontSizeProvider } from './contexts/FontSizeContext';
 import { FontSizeControl } from './components/FontSizeControl';
+import { AppShell } from './components/AppShell';
 // 单次生成数量类型（1 / 2 / 4）
 import type { BatchCount } from './components/BatchCountSelector';
 
@@ -86,6 +88,9 @@ const QuantumCamera: React.FC<QuantumCameraProps> = ({ onBack }) => {
   // AI 对话窗口
   const [showChat, setShowChat] = useState<boolean>(false);
   const [chatMounted, setChatMounted] = useState<boolean>(false);
+  // 无限画布
+  const [showCanvas, setShowCanvas] = useState<boolean>(false);
+  const [canvasMounted, setCanvasMounted] = useState<boolean>(false);
   // 卫星模式内部子页签：'earth' = 地球视图，'link' = 卫星链路窗口
   type SatelliteSubTab = 'earth' | 'link';
   const [satelliteSubTab, setSatelliteSubTab] = useState<SatelliteSubTab>('earth');
@@ -245,7 +250,7 @@ const QuantumCamera: React.FC<QuantumCameraProps> = ({ onBack }) => {
   const textMain = isDark ? 'text-gray-200' : 'text-gray-900';
 
   return (
-    <div className={`relative w-full h-screen overflow-hidden ${bgMain} ${textMain} selection:bg-moke-red selection:text-white transition-colors duration-500`}>
+    <div className={`relative w-full h-full overflow-hidden ${bgMain} ${textMain} selection:bg-moke-red selection:text-white transition-colors duration-500`}>
       {/* ========== 全局装饰背景层（pointer-events:none，不阻挡交互） ========== */}
       <InteractiveParticles isDark={isDark} zIndex={0} opacity={0.3} />
       <IndustrialDecorBundle
@@ -378,6 +383,8 @@ const QuantumCamera: React.FC<QuantumCameraProps> = ({ onBack }) => {
         onShowSeedance={() => { setShowSeedance(true); setSeedanceMounted(true); }}
         isDirectorActive={showDirector}
         isSeedanceActive={showSeedance}
+        onShowCanvas={() => { setShowCanvas(true); setCanvasMounted(true); }}
+        isCanvasActive={showCanvas}
       />
 
       {/* ====== 模态弹窗层（保留全部原有逻辑） ====== */}
@@ -412,20 +419,6 @@ const QuantumCamera: React.FC<QuantumCameraProps> = ({ onBack }) => {
         <ImageLightbox src={zoomImage} onClose={() => setZoomImage(null)} />
       )}
 
-      {/* 导演面板 — 首次打开后保持挂载，切换仅控制可见性 */}
-      {directorMounted && (
-        <div className="fixed inset-0 z-[9998]" style={{ visibility: showDirector ? 'visible' : 'hidden', pointerEvents: showDirector ? 'auto' : 'none' }}>
-          <DirectorDeckWindow onBack={() => setShowDirector(false)} />
-        </div>
-      )}
-
-      {/* Seedance 提示词生成 — 首次打开后保持挂载 */}
-      {seedanceMounted && (
-        <div className="fixed inset-0 z-[9998]" style={{ visibility: showSeedance ? 'visible' : 'hidden', pointerEvents: showSeedance ? 'auto' : 'none' }}>
-          <SeedancePromptWindow onBack={() => setShowSeedance(false)} />
-        </div>
-      )}
-
       {/* AI 对话窗口 — 浮层式，首次打开后保持挂载（保留会话状态） */}
       {chatMounted && (
         <div style={{ display: showChat ? 'block' : 'none' }}>
@@ -436,8 +429,7 @@ const QuantumCamera: React.FC<QuantumCameraProps> = ({ onBack }) => {
         </div>
       )}
 
-      {/* 全局字体大小调节 —— 悬浮于右下角，折叠态为胶囊按钮，点开后展开滑块面板
-          支持 ⌘/Ctrl + / - / 0 快捷键，自动持久化到 localStorage */}
+      {/* 全局字体大小调节 */}
       <FontSizeControl isDark={isDark} lang={lang} position="bottom-right" />
 
     </div>
@@ -469,8 +461,7 @@ const App: React.FC = () => {
           <GlobalAssetProvider>
           <PromptAppendProvider>
           <ChatProvider>
-          {/* QuantumCamera — 相机全屏体验，fixed 占满视口
-              新增 opacity transition：在 Intro 淡出的同时完成淡入，消除黑屏定格 */}
+          {/* 主应用 — 四页面平行布局 */}
           <div
             style={{
               visibility: showIntro && !isExiting ? 'hidden' : 'visible',
@@ -485,12 +476,69 @@ const App: React.FC = () => {
               zIndex: 1,
             }}
           >
-            <QuantumCamera onBack={handleBackToIntro} />
+            <AppShell>
+              {(activePage, mountedPages) => (
+                <>
+                  {/* 页面 1: MOKE Vision One — 量子相机 */}
+                  {mountedPages.has('vision') && (
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        zIndex: activePage === 'vision' ? 10 : 0,
+                        visibility: activePage === 'vision' ? 'visible' : 'hidden',
+                        pointerEvents: activePage === 'vision' ? 'auto' : 'none',
+                      }}
+                    >
+                      <QuantumCamera onBack={handleBackToIntro} />
+                    </div>
+                  )}
+
+                  {/* 页面 2: 导演面板 */}
+                  {mountedPages.has('director') && (
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        zIndex: activePage === 'director' ? 10 : 0,
+                        visibility: activePage === 'director' ? 'visible' : 'hidden',
+                        pointerEvents: activePage === 'director' ? 'auto' : 'none',
+                      }}
+                    >
+                      <DirectorDeckWindow onBack={() => {}} />
+                    </div>
+                  )}
+
+                  {/* 页面 3: Seedance 视频提示词 */}
+                  {mountedPages.has('seedance') && (
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        zIndex: activePage === 'seedance' ? 10 : 0,
+                        visibility: activePage === 'seedance' ? 'visible' : 'hidden',
+                        pointerEvents: activePage === 'seedance' ? 'auto' : 'none',
+                      }}
+                    >
+                      <SeedancePromptWindow onBack={() => {}} />
+                    </div>
+                  )}
+
+                  {/* 页面 4: 无限画布 */}
+                  {mountedPages.has('canvas') && (
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        zIndex: activePage === 'canvas' ? 10 : 0,
+                        visibility: activePage === 'canvas' ? 'visible' : 'hidden',
+                        pointerEvents: activePage === 'canvas' ? 'auto' : 'none',
+                      }}
+                    >
+                      <InfiniteCanvasWindow onBack={() => {}} />
+                    </div>
+                  )}
+                </>
+              )}
+            </AppShell>
           </div>
-          {/* IntroPage — 始终挂载，用 visibility + opacity 过渡切换
-              进入 Vision One 时 opacity 即时开始淡出（CSS transition），
-              同时 showIntro 会在下一帧切换，避免下层未绘制就让上层消失
-              finished 阶段使用 display:none 彻底卸载渲染树，停止 Canvas RAF 与视频解码 */}
+          {/* IntroPage — 始终挂载，用 visibility + opacity 过渡切换 */}
           <div
             className="fixed inset-0 bg-black"
             style={{
@@ -502,9 +550,6 @@ const App: React.FC = () => {
           >
             <IntroPage onEnter={wrapEnter} />
           </div>
-          {/* [v3] 全局 API 设置浮动按钮已下线 —— 入口归并至 HeaderBar 右上角，
-              与模型总览/主题/语言按钮对齐展示。保留 import 作为兼容，但不再渲染。 */}
-          {/* {!showIntro && <ApiSettingsFab />} */}
           </ChatProvider>
           </PromptAppendProvider>
           </GlobalAssetProvider>

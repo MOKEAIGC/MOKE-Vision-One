@@ -249,7 +249,7 @@ export const InteractiveParticles: React.FC<InteractiveParticlesProps> = ({
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className="fixed inset-0 pointer-events-none"
+      className="absolute inset-0 pointer-events-none"
       style={{
         zIndex,
         opacity,

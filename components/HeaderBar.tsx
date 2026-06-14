@@ -38,7 +38,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
 }) => {
   return (
     <header
-      className={`fixed top-0 left-0 right-0 flex justify-between items-center px-6 py-3 ${
+      className={`absolute top-0 left-0 right-0 flex justify-between items-center px-6 py-3 ${
         isDark ? 'bg-black/40' : 'bg-white/50'
       } backdrop-blur-xl z-50 transition-colors duration-500 select-none border-b ${
         isDark ? 'border-white/5' : 'border-black/5'

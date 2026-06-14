@@ -24,7 +24,7 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({ src, onClose }) =>
 
   return (
     <div 
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/95 backdrop-blur-xl animate-in fade-in duration-300"
+      className="absolute inset-0 z-[9999] flex items-center justify-center bg-black/95 backdrop-blur-xl animate-in fade-in duration-300"
       onClick={onClose}
     >
       {/* Container */}

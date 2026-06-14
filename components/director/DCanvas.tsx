@@ -259,7 +259,7 @@ export const DCanvas: React.FC<DCanvasProps> = ({
 
       {/* 全屏预览 */}
       {fullscreenImg && (
-        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-8 select-none cursor-zoom-out"
+        <div className="absolute inset-0 z-[100] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-8 select-none cursor-zoom-out"
           onClick={() => setFullscreenImg(null)}>
           <div className="relative max-w-full max-h-full flex flex-col items-center gap-8" onClick={(e) => e.stopPropagation()}>
             <div className="relative shadow-2xl rounded-sm overflow-hidden border border-gray-800">

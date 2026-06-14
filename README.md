@@ -7,6 +7,82 @@ e-mail:yu8231593@gmail.com
 
 MOKE Vision One 是一个基于 React + Vite 的 AI 图像生成桌面应用，当前桌面打包运行时已经切换到 Tauri 2 + Rust。
 
+## 🎨 Infinite-Canvas 集成
+
+本项目已整合 [Infinite-Canvas](https://github.com/hero8152/Infinite-Canvas) 全部功能：
+
+### 新增功能
+- **多平台 AI 图片生成**：支持 OpenAI / Gemini / APIMart / ModelScope / 火山引擎 / RunningHub 六大平台
+- **视频生成**：支持 Veo3 / Sora / 通义万相 / 豆包 Seedance 等视频模型
+- **ComfyUI 工作流**：连接本地 ComfyUI 实例，支持自定义工作流和负载均衡
+- **ModelScope 免费生图**：集成阿里魔搭平台免费模型（Z-Image-Turbo 等）
+- **素材库管理**：分类管理图片/视频素材，画布节点直接引用
+- **实时协作**：WebSocket 实时连接，多用户在线计数
+- **智能画布 Composer**：一站式多引擎、多模式智能生成控制
+- **画布后端持久化**：服务端画布存储，支持回收站和恢复
+
+### 新增画布节点
+| 节点 | 功能 |
+|------|------|
+| ComfyUI | 连接 ComfyUI 后端执行工作流 |
+| Composer | 智能生成控制器（API/ModelScope/ComfyUI 多引擎切换） |
+| Asset | 素材库节点，从素材库选择图片/视频 |
+
+### 启动方式
+
+```bash
+# 1. 启动后端服务（Infinite-Canvas 功能）
+./start-server.sh
+
+# 2. 启动前端（另开终端）
+npm run dev
+
+# 3. 访问 http://localhost:3000
+```
+
+### 后端配置
+
+编辑 `server/.env` 文件：
+
+```env
+# API 平台配置
+API_BASE_URL=https://api.openai.com
+API_KEY=sk-xxx
+API_PROTOCOL=openai
+
+# Gemini
+GEMINI_API_KEY=xxx
+
+# ModelScope（阿里魔搭免费生图）
+MODELSCOPE_TOKEN=xxx
+
+# ComfyUI 实例
+COMFYUI_INSTANCES=[{"url":"http://127.0.0.1:8188","name":"Local"}]
+```
+
+### 项目结构
+
+```
+├── server/                  # Python 后端（FastAPI）
+│   ├── main.py              # 主服务文件
+│   ├── requirements.txt     # Python 依赖
+│   ├── .env.example         # 环境变量模板
+│   ├── workflows/           # ComfyUI 工作流
+│   ├── data/                # 画布/对话数据存储
+│   ├── output/              # 生成图片/视频输出
+│   └── assets/              # 上传素材
+├── services/
+│   └── canvasBackendService.ts  # 前端与后端通信层
+├── components/canvas/
+│   ├── nodes/ComfyUINode.tsx    # ComfyUI 节点
+│   ├── nodes/SmartComposerNode.tsx  # 智能 Composer 节点
+│   ├── nodes/AssetNode.tsx      # 素材库节点
+│   ├── CanvasProviderPanel.tsx  # Provider 配置面板
+│   ├── CanvasAssetPanel.tsx     # 素材库管理面板
+│   └── CanvasWorkflowPanel.tsx  # 工作流管理面板
+└── start-server.sh          # 一键启动后端
+```
+
 <img width="1377" height="857" alt="image" src="https://github.com/user-attachments/assets/7764ffc0-dac8-40e7-b955-1235c82a181e" />
 <img width="1440" height="664" alt="3c7e62b118b1d0d901bae1fe3528570e" src="https://github.com/user-attachments/assets/eb35f20c-b96d-46d2-a39b-5ad4a1c1d15d" />
 <img width="1440" height="776" alt="cb3fe4ace9c8a454f46a79272a95f58f" src="https://github.com/user-attachments/assets/c63966ad-32a8-4a92-8a46-9ba74bf12c5a" />

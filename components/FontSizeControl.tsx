@@ -119,7 +119,7 @@ export const FontSizeControl: React.FC<FontSizeControlProps> = ({
 
   return (
     <div
-      className={`fixed ${posClass} z-[60] electron-no-drag select-none`}
+      className={`absolute ${posClass} z-[60] electron-no-drag select-none`}
       style={{
         // 控件本身用固定 px 显示，不跟随根字号放大，否则面板会越调越大
         fontSize: '14px',

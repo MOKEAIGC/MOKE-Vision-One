@@ -6,6 +6,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { MessageBubble } from './MessageBubble';
 import { SkillsBar } from './SkillsBar';
 import { SessionsPanel } from './SessionsPanel';
+import { SkillLoader } from './SkillLoader';
 import { getSkill, DEFAULT_SKILL_ID } from '../../services/chatSkills';
 import { useDraggable } from '../hooks/useDraggable';
 import { useResizable } from '../hooks/useResizable';
@@ -36,6 +37,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, onLockPrompt })
   const [sidebarOpen, setSidebarOpen] = useState(true);
   // SESSIONS 框体开关（浮层覆盖在消息区上方）
   const [sessionsPanelOpen, setSessionsPanelOpen] = useState(false);
+  // Skill Loader 面板开关
+  const [skillLoaderOpen, setSkillLoaderOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -88,7 +91,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, onLockPrompt })
 
   return (
     <div
-      className={`fixed top-20 right-6 z-[9997] flex ${shellBg} backdrop-blur-2xl border ${borderCls} rounded-2xl shadow-2xl overflow-hidden ${
+      className={`absolute top-20 right-6 z-[9997] flex ${shellBg} backdrop-blur-2xl border ${borderCls} rounded-2xl shadow-2xl overflow-hidden ${
         drag.dragging || resize.resizing ? 'transition-none' : 'transition-transform'
       }`}
       style={{
@@ -236,6 +239,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, onLockPrompt })
             currentSkillId={activeSession?.skillId || DEFAULT_SKILL_ID}
             onSelect={(skillId) => activeSessionId && setSessionSkill(activeSessionId, skillId)}
             isDark={isDark}
+            onOpenLoader={() => setSkillLoaderOpen(true)}
           />
         </div>
 
@@ -269,6 +273,22 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, onLockPrompt })
               <SessionsPanel isDark={isDark} onClose={() => setSessionsPanelOpen(false)} />
             </div>
           )}
+
+          {/* Skill Loader 浮层 */}
+          {skillLoaderOpen && (
+            <div className="absolute inset-0 z-20 animate-in fade-in slide-in-from-right-2 duration-200">
+              <div className={`h-full ${isDark ? 'bg-[#0A0A0A]' : 'bg-white'}`}>
+                <SkillLoader
+                  isDark={isDark}
+                  onClose={() => setSkillLoaderOpen(false)}
+                  onSkillLoaded={(skillId) => {
+                    if (activeSessionId) setSessionSkill(activeSessionId, skillId);
+                    setTimeout(() => setSkillLoaderOpen(false), 800);
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 输入区 */}
@@ -296,20 +316,44 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, onLockPrompt })
                 </svg>
               </button>
             ) : (
-              <button
-                onClick={handleSend}
-                disabled={!input.trim()}
-                className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                  input.trim()
-                    ? 'bg-moke-red text-white hover:brightness-110 shadow-md shadow-red-900/30'
-                    : isDark ? 'bg-white/5 text-gray-600 cursor-not-allowed' : 'bg-black/5 text-gray-400 cursor-not-allowed'
-                }`}
-                title="发送 (Enter)"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19V5M5 12l7-7 7 7" />
-                </svg>
-              </button>
+              <>
+                {/* 快捷翻译按钮 */}
+                {input.trim() && (
+                  <button
+                    onClick={async () => {
+                      const text = input.trim();
+                      if (!text) return;
+                      // 临时切换到翻译技能发送
+                      const prevSkill = activeSession?.skillId;
+                      if (activeSessionId) setSessionSkill(activeSessionId, 'translator');
+                      setInput('');
+                      await sendMessage(text);
+                      // 恢复之前的技能
+                      if (activeSessionId && prevSkill) setSessionSkill(activeSessionId, prevSkill);
+                    }}
+                    className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                      isDark ? 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-moke-red' : 'bg-black/5 text-gray-500 hover:bg-black/10 hover:text-moke-red'
+                    }`}
+                    title="快捷翻译（中英互译）"
+                  >
+                    <span className="text-[12px]">译</span>
+                  </button>
+                )}
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim()}
+                  className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                    input.trim()
+                      ? 'bg-moke-red text-white hover:brightness-110 shadow-md shadow-red-900/30'
+                      : isDark ? 'bg-white/5 text-gray-600 cursor-not-allowed' : 'bg-black/5 text-gray-400 cursor-not-allowed'
+                  }`}
+                  title="发送 (Enter)"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19V5M5 12l7-7 7 7" />
+                  </svg>
+                </button>
+              </>
             )}
           </div>
           <div className={`mt-1 flex justify-between text-[9px] font-mono ${subText} px-1`}>
